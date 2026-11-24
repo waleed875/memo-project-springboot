@@ -47,12 +47,12 @@ public final class IdentityApplicationService {
             return LoginAttempt.mustChange(profile);
         }
 
-        SessionProof proof = new SessionProof(account.id(), account.updatedAt(), clock.instant());
+        SessionProof proof = new SessionProof(account.id(), account.role(), account.updatedAt(), clock.instant());
         return LoginAttempt.authenticated(profile, proof);
     }
 
     public Optional<UserProfile> current(SessionProof proof) {
-        if (proof == null || proof.userId() == null || proof.securityStamp() == null
+        if (proof == null || proof.userId() == null || proof.role() == null || proof.securityStamp() == null
             || proof.authenticatedAt() == null) return Optional.empty();
 
         Instant now = clock.instant();
@@ -63,7 +63,7 @@ public final class IdentityApplicationService {
 
         return accounts.findActiveById(proof.userId())
             .filter(a -> !a.mustChangePassword() && a.updatedAt() != null
-                && a.updatedAt().equals(proof.securityStamp()) && a.role() != null)
+                && a.updatedAt().equals(proof.securityStamp()) && a.role() == proof.role())
             .map(UserProfile::from);
     }
 }

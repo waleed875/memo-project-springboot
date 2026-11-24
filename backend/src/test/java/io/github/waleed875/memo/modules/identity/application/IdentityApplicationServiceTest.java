@@ -73,16 +73,19 @@ class IdentityApplicationServiceTest {
         accounts.user = new UserAccount(ID, "admin", "Admin", "$2a$10$mock",
             MemoRole.ADMIN, true, STAMP);
         assertTrue(service.current(proof).isEmpty());
+        accounts.user = new UserAccount(ID, "admin", "Admin", "$2a$10$mock",
+            MemoRole.VIEWER, false, STAMP);
+        assertTrue(service.current(proof).isEmpty());
         accounts.user = null;
         assertTrue(service.current(proof).isEmpty());
     }
 
     @Test void eightHourAbsoluteExpiryAndFutureSessionAreRejected() {
         IdentityApplicationService service = service(new FakeAccounts(account));
-        assertTrue(service.current(new SessionProof(ID, STAMP, NOW.minus(Duration.ofHours(8)))).isPresent());
-        assertTrue(service.current(new SessionProof(ID, STAMP,
+        assertTrue(service.current(new SessionProof(ID, MemoRole.ADMIN, STAMP, NOW.minus(Duration.ofHours(8)))).isPresent());
+        assertTrue(service.current(new SessionProof(ID, MemoRole.ADMIN, STAMP,
             NOW.minus(Duration.ofHours(8)).minusNanos(1))).isEmpty());
-        assertTrue(service.current(new SessionProof(ID, STAMP, NOW.plusSeconds(1))).isEmpty());
+        assertTrue(service.current(new SessionProof(ID, MemoRole.ADMIN, STAMP, NOW.plusSeconds(1))).isEmpty());
         assertTrue(service.current(null).isEmpty());
     }
 }
