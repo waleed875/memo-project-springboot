@@ -25,7 +25,10 @@ class NoteReadPolicyTest {
         assertTrue(policy.canRead(MemoRole.ADMIN, actor, owner));
         assertTrue(policy.canRead(MemoRole.REVIEWER, actor, owner));
         assertTrue(policy.canRead(MemoRole.VIEWER, actor, owner));
-        assertFalse(policy.canRead(MemoRole.ADMIN, actor, null));
+        // The original C# service checks only DATA_ENTRY ownership.
+        assertTrue(policy.canRead(MemoRole.ADMIN, actor, null));
+        assertTrue(policy.canRead(MemoRole.REVIEWER, actor, null));
+        assertFalse(policy.canRead(MemoRole.DATA_ENTRY, actor, null));
         assertFalse(policy.canRead(MemoRole.ADMIN, null, owner));
     }
 }

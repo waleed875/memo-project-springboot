@@ -10,12 +10,12 @@ import java.util.UUID;
  */
 public final class NoteReadPolicy {
     public boolean canRead(MemoRole role, UUID actorId, UUID createdBy) {
-        if (role == null || actorId == null || createdBy == null) {
+        if (role == null || actorId == null) {
             return false;
         }
         return switch (role) {
             case ADMIN, REVIEWER, VIEWER -> true;
-            case DATA_ENTRY -> actorId.equals(createdBy);
+            case DATA_ENTRY -> createdBy != null && actorId.equals(createdBy);
         };
     }
 }
