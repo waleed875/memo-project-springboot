@@ -17,7 +17,7 @@ import org.springframework.stereotype.Repository;
  * No Hibernate schema generation or implicit migration.
  */
 @Repository
-public final class JdbcUserAccountLookup implements UserAccountLookup {
+public class JdbcUserAccountLookup implements UserAccountLookup {
     private static final String SELECT_ACTIVE = """
         select u.id, u.username, u.full_name, u.password_hash,
                u.must_change_password, u.updated_at, r.code
