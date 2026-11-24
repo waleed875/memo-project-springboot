@@ -57,6 +57,17 @@ class NoteDraftEditPostgresIT {
             new ClassPathResource("postgres-masterdata-schema.sql"),
             new ClassPathResource("postgres-notes-detail-schema.sql"),
             new ClassPathResource("postgres-notes-draft-edit-schema.sql")).execute(ds);
+        // Do not use ResourceDatabasePopulator to parse semicolons inside $.
+        jdbc.execute("""
+            create schema if not exists common;
+            create or replace function common.set_updated_at() returns trigger
+            language plpgsql as $
+            begin new.updated_at = now(); return new; end;
+            $;
+            create trigger trg_notes_updated_for_edit
+              before update on core.notes
+              for each row execute function common.set_updated_at();
+            """);
 
         jdbc.update("insert into auth.roles(id, code, name_ar) values (?, 'DATA_ENTRY', 'إدخال')", ROLE);
         jdbc.update("""
