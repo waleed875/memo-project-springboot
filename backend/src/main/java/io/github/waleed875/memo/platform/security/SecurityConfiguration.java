@@ -34,6 +34,12 @@ public class SecurityConfiguration {
                 "/api/master/note-types",
                 "/api/master/note-types/{id}/fields"
             ).permitAll()
+            // These collection endpoints are not implemented yet. A wildcard
+            // /api/notes/{id} must never accidentally open them.
+            .requestMatchers(HttpMethod.GET,
+                "/api/notes/review-queue", "/api/notes/incomplete-indicators",
+                "/api/notes/duplicates/check", "/api/notes/link-candidates"
+            ).denyAll()
             .requestMatchers(HttpMethod.GET, "/api/notes", "/api/notes/{id}").permitAll()
             .requestMatchers(HttpMethod.POST,
                 "/api/master/note-types/fields/preview",
