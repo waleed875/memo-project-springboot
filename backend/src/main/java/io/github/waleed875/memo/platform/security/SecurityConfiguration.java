@@ -40,6 +40,9 @@ public class SecurityConfiguration {
                 "/api/notes/review-queue", "/api/notes/incomplete-indicators",
                 "/api/notes/link-candidates"
             ).denyAll()
+            .requestMatchers(HttpMethod.GET, "/api/notes/{id}/source").permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/notes/{id}/source").permitAll()
+            .requestMatchers(HttpMethod.DELETE, "/api/notes/{id}/source").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/notes", "/api/notes/{id}",
                 "/api/notes/duplicates/check").permitAll()
             .requestMatchers(HttpMethod.DELETE, "/api/notes/{id}").permitAll()
