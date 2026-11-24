@@ -33,7 +33,11 @@ class IdentityApplicationServiceTest {
 
     private IdentityApplicationService service(FakeAccounts accounts) {
         PasswordVerifier verifier = (raw, hash) -> "valid".equals(raw) && hash.equals("$2a$10$mock");
-        return new IdentityApplicationService(accounts, verifier, Clock.fixed(NOW, ZoneOffset.UTC));
+        PasswordHasher hasher = raw -> "$2a$10$replacement";
+        UserPasswordWriter writer = (id, current, replacement) -> true;
+        SecurityEventAudit audit = (id, action, description) -> {};
+        return new IdentityApplicationService(accounts, verifier, hasher, writer, audit,
+            Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test void successfulLoginCreatesBoundedSession() {
