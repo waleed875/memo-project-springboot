@@ -229,4 +229,45 @@ class NoteCreatePostgresIT {
             pool.shutdownNow();
         }
     }
+    @Test
+    void differentOperationsWithSameNumberCannotCreateDuplicateConcurrently() throws Exception {
+        var first = command("١٣٠", false);
+        var second = command("130", false);
+        var pool = Executors.newFixedThreadPool(2);
+        var ready = new CountDownLatch(2);
+        var go = new CountDownLatch(1);
+        try {
+            var a = pool.submit(() -> {
+                ready.countDown();
+                go.await();
+                try {
+                    creator.create(first, ACTOR, TODAY);
+                    return true;
+                } catch (NoteCreateConflict duplicate) {
+                    return false;
+                }
+            });
+            var b = pool.submit(() -> {
+                ready.countDown();
+                go.await();
+                try {
+                    creator.create(second, ACTOR, TODAY);
+                    return true;
+                } catch (NoteCreateConflict duplicate) {
+                    return false;
+                }
+            });
+            assertTrue(ready.await(5, TimeUnit.SECONDS));
+            go.countDown();
+            boolean wonA = a.get(15, TimeUnit.SECONDS);
+            boolean wonB = b.get(15, TimeUnit.SECONDS);
+            assertNotEquals(wonA, wonB);
+            assertEquals(1L, count("select count(*) from core.notes"));
+            assertEquals(1L, count("select count(*) from core.note_create_operations"));
+            assertEquals(2L, count("select count(*) from audit.logs"));
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
 }
