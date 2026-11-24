@@ -59,6 +59,10 @@ class NoteSourcePostgresIT {
             new ClassPathResource("postgres-notes-detail-schema.sql"),
             new ClassPathResource("postgres-notes-source-schema.sql")
         ).execute(ds);
+        var triggers = new ResourceDatabasePopulator(
+            new ClassPathResource("postgres-notes-source-trigger.sql"));
+        triggers.setSeparator("@@");
+        triggers.execute(ds);
         jdbc = new JdbcTemplate(ds);
         var factory = new TransactionProxyFactoryBean();
         factory.setTarget(new JdbcNoteSourceStore(jdbc, new NamedParameterJdbcTemplate(ds)));
