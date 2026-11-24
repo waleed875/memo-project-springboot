@@ -5,6 +5,7 @@ import io.github.waleed875.memo.modules.identity.application.LoginAttempt;
 import io.github.waleed875.memo.modules.identity.application.SessionProof;
 import io.github.waleed875.memo.modules.identity.application.UserProfile;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import jakarta.servlet.http.HttpSession;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -37,7 +38,7 @@ public final class LegacyAuthController {
     }
 
     @GetMapping({"/api/auth/csrf", "/api/admin/csrf"})
-    public Map<String, String> csrf(CsrfToken token) {
+    public Map<String, String> csrf(@RequestAttribute(name = "_csrf") CsrfToken token) {
         return Map.of("token", token.getToken());
     }
 
