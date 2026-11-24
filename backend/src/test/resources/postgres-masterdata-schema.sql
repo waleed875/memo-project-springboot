@@ -38,3 +38,50 @@ create table core.production_lines (
 );
 create unique index ux_production_lines_factory_name_active
     on core.production_lines(factory_id, lower(name)) where is_deleted = false;
+
+
+-- Additional only-for-TEST tables derived from legacy 002 and system.app_settings.
+-- No full migration, no production DDL.
+create schema if not exists auth;
+create schema if not exists audit;
+create schema if not exists system;
+create table auth.roles (
+    id uuid primary key,
+    code varchar(50) unique not null,
+    name_ar varchar(100) not null,
+    is_active boolean not null default true
+);
+create table auth.users (
+    id uuid primary key,
+    username varchar(100) unique not null,
+    password_hash text not null,
+    full_name varchar(255) not null,
+    role_id uuid not null references auth.roles(id),
+    is_active boolean not null default true,
+    is_deleted boolean not null default false
+);
+create table system.app_settings (
+    key varchar(100) primary key,
+    value text,
+    updated_at timestamp not null default now()
+);
+create table audit.logs (
+    id bigserial primary key,
+    user_id uuid references auth.users(id),
+    action_type varchar(100) not null,
+    schema_name varchar(100),
+    table_name varchar(100),
+    record_id uuid,
+    description text,
+    old_value jsonb,
+    new_value jsonb,
+    created_at timestamp not null default now()
+);
+-- Only columns required for the relationship checks, not the full core.notes schema.
+create table core.notes (
+    id uuid primary key,
+    company_id uuid not null references core.companies(id),
+    factory_id uuid references core.factories(id),
+    production_line_id uuid references core.production_lines(id),
+    is_deleted boolean not null default false
+);

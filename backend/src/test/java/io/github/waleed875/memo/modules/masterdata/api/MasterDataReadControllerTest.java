@@ -73,11 +73,13 @@ class MasterDataReadControllerTest {
             .andExpect(jsonPath("$[0].factoryName").value("معمل"));
     }
 
-    @Test void missingCompanyReturns404AndWritesRemainDenied() throws Exception {
+    @Test void missingCompanyReturns404AndWritesRemainDeniedForViewer() throws Exception {
         authenticatedViewer();
         mvc.perform(get("/api/master/companies/{id}", UUID.randomUUID()))
             .andExpect(status().isNotFound());
-        mvc.perform(post("/api/master/companies").with(csrf())).andExpect(status().isForbidden());
+        mvc.perform(post("/api/master/companies").with(csrf())
+            .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+            .content("{\"name\":\"شركة اختبار\"}")).andExpect(status().isForbidden());
         mvc.perform(delete("/api/master/companies/{id}", UUID.randomUUID()).with(csrf()))
             .andExpect(status().isForbidden());
         verify(reader, never()).companies();
