@@ -37,9 +37,9 @@ public class SecurityConfiguration {
             // These collection endpoints are not implemented yet. A wildcard
             // /api/notes/{id} must never accidentally open them.
             .requestMatchers(HttpMethod.GET,
-                "/api/notes/review-queue", "/api/notes/incomplete-indicators",
-                "/api/notes/link-candidates"
+                "/api/notes/incomplete-indicators", "/api/notes/link-candidates"
             ).denyAll()
+            .requestMatchers(HttpMethod.GET, "/api/notes/review-queue").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/notes/{id}/source").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/notes/{id}/source").permitAll()
             .requestMatchers(HttpMethod.DELETE, "/api/notes/{id}/source").permitAll()
