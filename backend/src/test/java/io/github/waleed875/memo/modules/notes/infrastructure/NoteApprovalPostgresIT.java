@@ -57,8 +57,8 @@ class NoteApprovalPostgresIT {
             """, USER, ROLE, CREATOR, ROLE, OTHER, ROLE);
         jdbc.update("insert into core.companies(id, name) values (?, 'Company')", COMPANY);
         jdbc.update("insert into core.note_types(id, code, name_ar) values (?, 'ENTRY', 'Entry')", TYPE);
-        jdbc.update("insert into core.note_fields(id, code, name_ar) values (?, 'CHECK', 'مؤشر', ?)",
-            FIELD, "مؤشر");
+        jdbc.update("insert into core.note_fields(id, code, name_ar) values (?, 'CHECK', 'مؤشر')",
+            FIELD);
         jdbc.update("""
             insert into core.note_type_fields(id, note_type_id, field_id, sort_order, is_required)
             values (?, ?, ?, 1, true)
