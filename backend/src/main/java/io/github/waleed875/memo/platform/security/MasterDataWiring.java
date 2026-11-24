@@ -2,6 +2,9 @@ package io.github.waleed875.memo.platform.security;
 
 import io.github.waleed875.memo.modules.masterdata.application.MasterDataQueryService;
 import io.github.waleed875.memo.modules.masterdata.application.MasterDataReader;
+import io.github.waleed875.memo.modules.masterdata.application.MasterDataCommandService;
+import io.github.waleed875.memo.modules.masterdata.application.MasterDataWriteRepository;
+import io.github.waleed875.memo.modules.masterdata.application.MasterDataWriteGate;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -11,5 +14,11 @@ public class MasterDataWiring {
     @Bean
     MasterDataQueryService masterDataQueryService(MasterDataReader reader) {
         return new MasterDataQueryService(reader);
+    }
+    @Bean
+    MasterDataCommandService masterDataCommandService(
+        MasterDataWriteRepository writer, MasterDataWriteGate gate
+    ) {
+        return new MasterDataCommandService(writer, gate);
     }
 }

@@ -32,6 +32,15 @@ public class SecurityConfiguration {
                 "/api/master/factories",
                 "/api/master/production-lines"
             ).permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/master/companies", "/api/master/factories",
+                "/api/master/production-lines", "/api/master/production-lines/{id}/toggle"
+            ).permitAll()
+            .requestMatchers(HttpMethod.PUT, "/api/master/companies/{id}",
+                "/api/master/factories/{id}", "/api/master/production-lines/{id}"
+            ).permitAll()
+            .requestMatchers(HttpMethod.DELETE, "/api/master/companies/{id}",
+                "/api/master/factories/{id}", "/api/master/production-lines/{id}"
+            ).permitAll()
             .anyRequest().denyAll()
         );
         http.httpBasic(basic -> basic.disable());
