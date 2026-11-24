@@ -21,3 +21,10 @@
 6. تقارن الأوقات دون تحويل منطقة زمنية، بما يطابق التعامل الحسابي مع `DateTime` المحلي في الكود الأصلي. يحتاج تحديد سياسة تخزين timestamp وtimezone في JDBC قبل الاستخدام على الإنتاج.
 
 أُضيفت اختبارات للحالات المذكورة. لا توجد واجهة HTTP جديدة لهذه القاعدة بعد، ومطابقتها على بيانات حقيقية لم تُختبر.
+
+## موضع الكود بعد اعتماد المعمارية
+
+- `backend/src/main/java/io/github/waleed875/memo/modules/notes/domain/DelayCalculator.java`
+- `backend/src/main/java/io/github/waleed875/memo/modules/notes/domain/DelayClass.java`
+
+الاختبارات المطابقة في `backend/src/test/java/io/github/waleed875/memo/modules/notes/domain/`، وتُفحص استقلالية نطاق الأعمال بواسطة ArchUnit.

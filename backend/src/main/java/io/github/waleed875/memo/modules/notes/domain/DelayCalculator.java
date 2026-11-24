@@ -1,4 +1,4 @@
-package io.github.waleed875.memo.domain;
+package io.github.waleed875.memo.modules.notes.domain;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;

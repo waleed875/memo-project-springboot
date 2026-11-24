@@ -1,4 +1,4 @@
-package io.github.waleed875.memo.security;
+package io.github.waleed875.memo.platform.security;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;

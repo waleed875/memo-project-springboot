@@ -54,3 +54,14 @@ PostgreSQL (retain current schema initially)
 جرد نقاط API، والخدمات، وجداول SQL والصلاحيات، ثم تأسيس تطبيق Spring Boot أولي مع اختبار Health + اتصال PostgreSQL بقاعدة اختبار منفصلة. لا تُستخدم قاعدة الإنتاج أثناء التطوير.
 
 لا تُجرى أي عمليات Commit أو Push على المستودع القديم `waleed875/memo_project`.
+
+## هندسة الخادم (قرار معتمد للتطوير)
+
+نعتمد **Modular Monolith** قائمًا على نطاقات الأعمال، مع حدود Clean/Hexagonal Architecture. يحتوي `backend/src/main/java/io/github/waleed875/memo/modules` على الوحدات، بينما تبقى `sharedkernel` صغيرة و`platform` للتقنيات التشغيلية.
+
+- [وثيقة المعمارية وحدود الطبقات](docs/ARCHITECTURE.md)
+- [ADR-0001: اعتماد Modular Monolith](docs/adr/0001-modular-monolith.md)
+- [ADR-0002: التوافق الآمن عند ترحيل C#](docs/adr/0002-compatibility-first.md)
+- [قواعد الهندسة ومراجعة الكود](docs/ENGINEERING_STANDARDS.md)
+
+يتم فرض حدود الاعتمادات بواسطة اختبارات ArchUnit في GitHub Actions. ما زال المشروع في مرحلة التطوير، وليس جاهزًا للإنتاج.

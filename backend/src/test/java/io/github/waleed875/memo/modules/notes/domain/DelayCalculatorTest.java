@@ -1,4 +1,4 @@
-package io.github.waleed875.memo.domain;
+package io.github.waleed875.memo.modules.notes.domain;
 
 import static org.junit.jupiter.api.Assertions.*;
 import java.time.LocalDateTime;

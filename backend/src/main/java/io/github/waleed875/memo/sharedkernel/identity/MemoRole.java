@@ -1,7 +1,11 @@
-package io.github.waleed875.memo.security;
+package io.github.waleed875.memo.sharedkernel.identity;
 
 import java.util.Locale;
 
+/**
+ * Canonical user roles found in the legacy database. Shared by bounded contexts.
+ * Keep the shared kernel small and free of Spring/persistence dependencies.
+ */
 public enum MemoRole {
     ADMIN,
     DATA_ENTRY,

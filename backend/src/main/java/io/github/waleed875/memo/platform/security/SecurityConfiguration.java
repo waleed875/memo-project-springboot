@@ -1,4 +1,4 @@
-package io.github.waleed875.memo.security;
+package io.github.waleed875.memo.platform.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

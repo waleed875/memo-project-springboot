@@ -1,4 +1,4 @@
-package io.github.waleed875.memo.domain;
+package io.github.waleed875.memo.modules.notes.domain;
 
 /** Mirrors the business classifications in the legacy C# DelayCalculator. */
 public enum DelayClass {

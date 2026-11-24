@@ -22,3 +22,14 @@ The database is intentionally **not migrated** or seeded by this bootstrap. Read
 Docker preview: `cp deploy/.env.example deploy/.env.preview`, edit password, then `docker compose --env-file deploy/.env.preview -f deploy/compose.preview.yaml up --build -d`. Exposes the API on 127.0.0.1:8080 only. Frontend and functional API routes have **not** been ported.
 
 No Maven/Docker runtime tests are claimed as passed until executed in a properly provisioned build environment.
+
+## Architecture
+
+The code follows a **modular monolith**: `modules/<bounded-context>/{domain,application,api,infrastructure}` plus a small `sharedkernel/` and runtime `platform/`. See [architecture guide](../docs/ARCHITECTURE.md) and [ADR-0001](../docs/adr/0001-modular-monolith.md).
+
+- `modules/notes/domain`: pure delay classification and note access policy.
+- `modules/identity/domain`: privileged operation policies.
+- `sharedkernel/identity`: the minimal role vocabulary reused between modules.
+- `platform/security`: Spring Security configuration (framework layer).
+
+The ArchUnit test suite enforces separation and no module dependency cycles during `mvn verify`. No actual business HTTP endpoints are implemented yet; the authorization policies are **not wired to controllers**.
