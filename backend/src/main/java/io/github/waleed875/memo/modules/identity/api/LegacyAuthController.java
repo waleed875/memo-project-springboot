@@ -4,6 +4,7 @@ import io.github.waleed875.memo.modules.identity.application.IdentityApplication
 import io.github.waleed875.memo.modules.identity.application.LoginAttempt;
 import io.github.waleed875.memo.modules.identity.application.PasswordChangeOutcome;
 import io.github.waleed875.memo.platform.security.FixedWindowAttemptLimiter;
+import io.github.waleed875.memo.platform.security.SessionUserResolver;
 import io.github.waleed875.memo.modules.identity.application.SessionProof;
 import io.github.waleed875.memo.modules.identity.application.UserProfile;
 import jakarta.servlet.http.HttpServletRequest;
@@ -32,14 +33,18 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping
 public final class LegacyAuthController {
-    private static final String SESSION_KEY = "memo.authenticated.session";
+    private static final String SESSION_KEY = SessionUserResolver.SESSION_KEY;
 
     private final IdentityApplicationService identity;
     private final FixedWindowAttemptLimiter limiter;
+    private final SessionUserResolver sessions;
 
-    public LegacyAuthController(IdentityApplicationService identity, FixedWindowAttemptLimiter limiter) {
+    public LegacyAuthController(
+        IdentityApplicationService identity, FixedWindowAttemptLimiter limiter, SessionUserResolver sessions
+    ) {
         this.identity = identity;
         this.limiter = limiter;
+        this.sessions = sessions;
     }
 
     @GetMapping({"/api/auth/csrf", "/api/admin/csrf"})
@@ -166,13 +171,7 @@ public final class LegacyAuthController {
     }
 
     private Optional<UserProfile> currentUser(HttpServletRequest request) {
-        HttpSession session = request.getSession(false);
-        if (session == null) return Optional.empty();
-        Object stored = session.getAttribute(SESSION_KEY);
-        if (!(stored instanceof SessionProof proof)) return Optional.empty();
-        Optional<UserProfile> current = identity.current(proof);
-        if (current.isEmpty()) session.removeAttribute(SESSION_KEY);
-        return current;
+        return sessions.resolve(request);
     }
 
     private Map<String, Object> profileMap(UserProfile user) {
