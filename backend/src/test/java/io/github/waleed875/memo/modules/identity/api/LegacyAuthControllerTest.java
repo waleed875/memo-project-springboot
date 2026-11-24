@@ -7,7 +7,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import io.github.waleed875.memo.modules.identity.application.PasswordVerifier;
+import io.github.waleed875.memo.modules.identity.infrastructure.BcryptPasswordVerifier;
 import io.github.waleed875.memo.modules.identity.application.UserAccountLookup;
 import io.github.waleed875.memo.modules.identity.domain.UserAccount;
 import io.github.waleed875.memo.sharedkernel.identity.MemoRole;
@@ -32,7 +32,7 @@ class LegacyAuthControllerTest {
 
     @Autowired MockMvc mvc;
     @MockitoBean UserAccountLookup accounts;
-    @MockitoBean PasswordVerifier verifier;
+    @MockitoBean BcryptPasswordVerifier verifier;
 
     private void validLoginAccount() {
         UserAccount user = new UserAccount(ID, "admin", "System Admin",
