@@ -11,9 +11,10 @@ import io.github.waleed875.memo.modules.notes.application.NoteSavePreflight;
 import io.github.waleed875.memo.modules.notes.application.NoteSaveCatalog;
 import io.github.waleed875.memo.modules.notes.application.NoteDuplicateReader;
 import io.github.waleed875.memo.modules.notes.application.NoteDuplicateQueryService;
+import io.github.waleed875.memo.modules.notes.application.NoteCreateService;
+import io.github.waleed875.memo.modules.notes.application.NoteCreator;
 import java.time.Clock;
 import java.time.ZoneId;
-import io.github.waleed875.memo.modules.masterdata.application.MasterDataWriteGate;
 import io.github.waleed875.memo.modules.notes.domain.NoteReadPolicy;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,6 +22,11 @@ import org.springframework.context.annotation.Configuration;
 /** Compose note read use cases without coupling domain to HTTP or JDBC. */
 @Configuration
 public class NotesWiring {
+    @Bean
+    NoteCreateService noteCreateService(NoteCreator creator, MasterDataWriteGate gate) {
+        return new NoteCreateService(creator, gate, Clock.system(ZoneId.of("Asia/Damascus")));
+    }
+
     @Bean
     NoteDuplicateQueryService noteDuplicateQueryService(NoteDuplicateReader reader) {
         return new NoteDuplicateQueryService(reader);
