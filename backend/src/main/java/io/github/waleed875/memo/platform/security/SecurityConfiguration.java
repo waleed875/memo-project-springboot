@@ -34,7 +34,11 @@ public class SecurityConfiguration {
                 "/api/master/note-types",
                 "/api/master/note-types/{id}/fields"
             ).permitAll()
-            .requestMatchers(HttpMethod.POST, "/api/master/note-types/fields/preview").permitAll()
+            .requestMatchers(HttpMethod.POST,
+                "/api/master/note-types/fields/preview",
+                "/api/master/note-types/fields").permitAll()
+            .requestMatchers(HttpMethod.DELETE,
+                "/api/master/note-types/fields/{fieldId}").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/master/companies", "/api/master/factories",
                 "/api/master/production-lines", "/api/master/production-lines/{id}/toggle"
             ).permitAll()
