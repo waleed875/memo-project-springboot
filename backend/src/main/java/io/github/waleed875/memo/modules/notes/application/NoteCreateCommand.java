@@ -1,19 +1,30 @@
 package io.github.waleed875.memo.modules.notes.application;
 
 import io.github.waleed875.memo.modules.notes.domain.NoteSaveCandidate;
+import io.github.waleed875.memo.modules.notes.domain.NoteAttachment;
+import java.util.List;
 import java.util.UUID;
 
 /**
- * Explicit, restricted operation-ID create contract for internal use only.
- *
- * This slice supports notes, factory/line, dates and indicator values.
- * Attachments, note links, source documents, loot, invoices and duplicate
- * resolution are deliberately NOT represented rather than silently ignored.
- * No legacy POST/PUT HTTP route is enabled by this model.
+ * Restricted internal create: optional single attachment plus pre-existing
+ * opposite-type note links. No legacy write HTTP route is enabled here.
  */
 public record NoteCreateCommand(
     UUID operationId,
     UUID noteId,
     NoteSaveCandidate candidate,
-    String notes
-) {}
+    String notes,
+    NoteAttachment attachment,
+    List<UUID> relatedNoteIds
+) {
+    public NoteCreateCommand {
+        relatedNoteIds = relatedNoteIds == null ? List.of() : List.copyOf(relatedNoteIds);
+    }
+
+    /** Backward compatible four-argument constructor for the original core tests. */
+    public NoteCreateCommand(
+        UUID operationId, UUID noteId, NoteSaveCandidate candidate, String notes
+    ) {
+        this(operationId, noteId, candidate, notes, null, List.of());
+    }
+}
