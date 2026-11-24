@@ -110,6 +110,9 @@ class NoteCreatePostgresIT {
         jdbc.update("delete from core.note_review_history");
         jdbc.update("delete from core.note_field_values");
         jdbc.update("delete from core.notes");
+    }
+
+    private void seedLinkTarget() {
         jdbc.update("""
             insert into core.notes(
                 id, company_id, note_type_id, note_number,
@@ -294,6 +297,7 @@ class NoteCreatePostgresIT {
 
     @Test
     void attachmentAndLinkSaveAtomicallyAndReplayWithoutReinserting() {
+        seedLinkTarget();
         var original = command("141", false);
         var enhanced = new NoteCreateCommand(original.operationId(), original.noteId(),
             original.candidate(), original.notes(),
@@ -315,6 +319,7 @@ class NoteCreatePostgresIT {
 
     @Test
     void replayWithChangedAttachmentOrLinksMustConflict() {
+        seedLinkTarget();
         var basic = command("142", false);
         var uploaded = new NoteCreateCommand(basic.operationId(), basic.noteId(),
             basic.candidate(), basic.notes(),
@@ -336,6 +341,7 @@ class NoteCreatePostgresIT {
 
     @Test
     void invalidAttachmentOrForeignLinkCannotReserveOperation() {
+        seedLinkTarget();
         var basic = command("143", false);
         var unsafe = new NoteCreateCommand(basic.operationId(), basic.noteId(),
             basic.candidate(), basic.notes(),
@@ -353,6 +359,7 @@ class NoteCreatePostgresIT {
 
     @Test
     void auditFailureRollsBackAttachmentAndLinkAsWellAsNote() {
+        seedLinkTarget();
         var base = command("999", false);
         var attached = new NoteCreateCommand(base.operationId(), base.noteId(),
             base.candidate(), base.notes(),
