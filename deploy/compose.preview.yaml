@@ -1,0 +1,50 @@
+# Preview only: no legacy APIs, users, or frontend have been migrated yet.
+# docker compose --env-file deploy/.env.preview -f deploy/compose.preview.yaml up --build -d
+name: memo-springboot-preview
+
+services:
+  postgres:
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_DB: memodb_preview
+      POSTGRES_USER: memo_preview
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in deploy/.env.preview}
+    volumes:
+      - postgres_preview_data:/var/lib/postgresql/data
+    networks: [memo_internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  memo-api:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    environment:
+      SERVER_PORT: "8080"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/memodb_preview
+      SPRING_DATASOURCE_USERNAME: memo_preview
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in deploy/.env.preview}
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [memo_internal]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+networks:
+  memo_internal:
+    internal: true
+
+volumes:
+  postgres_preview_data:
