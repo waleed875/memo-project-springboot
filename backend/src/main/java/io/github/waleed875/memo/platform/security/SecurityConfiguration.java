@@ -48,7 +48,7 @@ public class SecurityConfiguration {
             .requestMatchers(HttpMethod.DELETE, "/api/notes/{id}").permitAll()
             .requestMatchers(HttpMethod.POST,
                 "/api/notes/{id}/start-review", "/api/notes/{id}/return",
-                "/api/notes/{id}/release-review").permitAll()
+                "/api/notes/{id}/release-review", "/api/notes/{id}/approve").permitAll()
             .requestMatchers(HttpMethod.POST,
                 "/api/master/note-types/fields/preview",
                 "/api/master/note-types/fields").permitAll()

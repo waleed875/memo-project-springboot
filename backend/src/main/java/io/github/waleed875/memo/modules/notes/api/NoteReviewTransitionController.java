@@ -5,6 +5,7 @@ import io.github.waleed875.memo.modules.masterdata.application.MasterDataOperati
 import io.github.waleed875.memo.modules.masterdata.application.MasterDataReadOnlyException;
 import io.github.waleed875.memo.modules.masterdata.application.UnauthenticatedMasterDataAccess;
 import io.github.waleed875.memo.modules.notes.application.NoteReviewConflict;
+import io.github.waleed875.memo.modules.notes.domain.NoteSaveValidationException;
 import io.github.waleed875.memo.modules.notes.application.NoteReviewTransitionService;
 import io.github.waleed875.memo.platform.security.SessionUserResolver;
 import jakarta.servlet.http.HttpServletRequest;
@@ -60,6 +61,16 @@ public final class NoteReviewTransitionController {
         return Map.of("message", "تمت إعادة المذكرة للتصحيح.");
     }
 
+    @PostMapping("/{id}/approve")
+    public Map<String, String> approve(@PathVariable UUID id,
+        @RequestBody(required = false) ReviewActionRequest body,
+        HttpServletRequest request
+    ) {
+        service.approve(sessions.resolve(request).orElse(null), id,
+            body == null ? null : body.expectedUpdatedAt());
+        return Map.of("message", "تم اعتماد المذكرة بنجاح.");
+    }
+
     @PostMapping("/{id}/release-review")
     public Map<String, String> release(@PathVariable UUID id,
         @RequestBody(required = false) ReviewReasonRequest body,
@@ -76,7 +87,8 @@ public final class NoteReviewTransitionController {
     @ExceptionHandler(MasterDataForbiddenException.class)
     ResponseEntity<Void> forbidden() { return ResponseEntity.status(403).build(); }
 
-    @ExceptionHandler({NoteReviewConflict.class, MasterDataReadOnlyException.class})
+    @ExceptionHandler({NoteReviewConflict.class, NoteSaveValidationException.class,
+        MasterDataReadOnlyException.class})
     ResponseEntity<Map<String, String>> conflict(RuntimeException error) {
         return ResponseEntity.status(409).body(Map.of("message", error.getMessage()));
     }
@@ -86,4 +98,3 @@ public final class NoteReviewTransitionController {
         return ResponseEntity.badRequest().body(Map.of("message", error.getMessage()));
     }
 }
-

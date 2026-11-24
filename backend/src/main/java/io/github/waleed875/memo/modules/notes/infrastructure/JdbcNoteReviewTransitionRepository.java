@@ -2,8 +2,16 @@ package io.github.waleed875.memo.modules.notes.infrastructure;
 
 import io.github.waleed875.memo.modules.masterdata.application.MasterDataForbiddenException;
 import io.github.waleed875.memo.modules.notes.application.NoteReviewConflict;
+import io.github.waleed875.memo.modules.notes.domain.IndicatorValue;
+import io.github.waleed875.memo.modules.notes.domain.NoteApprovalPolicy;
+import io.github.waleed875.memo.modules.notes.domain.NoteSaveCandidate;
+import io.github.waleed875.memo.modules.notes.domain.NoteSaveValidationException;
+import io.github.waleed875.memo.modules.notes.domain.NoteStatus;
+import io.github.waleed875.memo.modules.notes.domain.RequiredNoteField;
 import io.github.waleed875.memo.modules.notes.application.NoteReviewTransitionRepository;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -19,7 +27,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class JdbcNoteReviewTransitionRepository implements NoteReviewTransitionRepository {
     private record State(String status, UUID reviewerId, UUID createdBy,
                          LocalDateTime updatedAt, LocalDateTime reviewStartedAt,
-                         String returnReason) {}
+                         String returnReason, UUID approvedBy, LocalDateTime approvedAt) {}
+
+    private record ApprovalSnapshot(UUID noteTypeId, UUID companyId, String noteNumber,
+                                    LocalDate writingDate, LocalDate arrivalAt) {}
 
     private final JdbcTemplate jdbc;
 
@@ -89,6 +100,92 @@ public class JdbcNoteReviewTransitionRepository implements NoteReviewTransitionR
         record(noteId, actorId, "ADMIN_RELEASE_REVIEW", reason, reason, prior);
     }
 
+
+    @Override
+    @Transactional
+    public void approve(UUID noteId, UUID actorId, LocalDateTime expectedUpdatedAt) {
+        requireActiveRole(actorId, false);
+        State before = lock(noteId, expectedUpdatedAt);
+        // Security decisions happen before loading indicator values, but the
+        // final domain policy checks those decisions again with persisted data.
+        if (actorId.equals(before.createdBy())) {
+            throw new NoteSaveValidationException(
+                "لا يمكن اعتماد المذكرة من المستخدم الذي أدخلها.");
+        }
+        if (!"UNDER_REVIEW".equals(before.status()) || !actorId.equals(before.reviewerId())) {
+            throw new NoteReviewConflict(
+                "يجب أن تكون المذكرة محجوزة للتدقيق من قبلك قبل اعتمادها.");
+        }
+
+        ApprovalSnapshot snapshot = jdbc.queryForObject("""
+            select note_type_id, company_id, note_number, writing_date, arrival_at
+              from core.notes
+             where id = ? and not is_deleted
+            """, (rs, row) -> new ApprovalSnapshot(
+                rs.getObject("note_type_id", UUID.class),
+                rs.getObject("company_id", UUID.class),
+                rs.getString("note_number"),
+                rs.getObject("writing_date", LocalDate.class),
+                rs.getObject("arrival_at", LocalDate.class)
+            ), noteId);
+        if (snapshot == null) throw new NoteReviewConflict("المذكرة غير موجودة أو حُذفت.");
+
+        // Block admin changes to effective definitions while validation and the
+        // approval transaction are in flight. Soft-deleted rows never participate.
+        List<RequiredNoteField> active = jdbc.query("""
+            select nf.id, nf.name_ar, ntf.is_required
+              from core.note_type_fields ntf
+              join core.note_fields nf on nf.id = ntf.field_id
+             where ntf.note_type_id = ?
+               and ntf.is_active and nf.is_active
+               and not ntf.is_deleted and not nf.is_deleted
+             order by ntf.sort_order, nf.id
+             for share of ntf, nf
+            """, (rs, row) -> new RequiredNoteField(
+                rs.getObject("id", UUID.class),
+                rs.getString("name_ar"), rs.getBoolean("is_required"), true),
+            snapshot.noteTypeId());
+
+        // Validate all stored values, including inactive/obsolete field IDs:
+        // original C# NoteValidator checks enum validity for every value.
+        List<NoteSaveCandidate.IndicatorInput> indicators = jdbc.query("""
+            select field_id, field_value
+              from core.note_field_values
+             where note_id = ?
+             order by field_id
+             for share
+            """, (rs, row) -> {
+                try {
+                    return new NoteSaveCandidate.IndicatorInput(
+                        rs.getObject("field_id", UUID.class),
+                        IndicatorValue.fromDatabase(rs.getShort("field_value")));
+                } catch (IllegalArgumentException invalidCode) {
+                    throw new NoteSaveValidationException("قيمة البند غير صحيحة.");
+                }
+            }, noteId);
+
+        NoteSaveCandidate persisted = new NoteSaveCandidate(
+            snapshot.noteNumber(), snapshot.companyId(), snapshot.noteTypeId(),
+            null, null, snapshot.writingDate(), snapshot.arrivalAt(),
+            false, false, indicators);
+        NoteApprovalPolicy.validate(
+            actorId, before.createdBy(), before.reviewerId(),
+            NoteStatus.valueOf(before.status()), persisted, active,
+            LocalDate.now(ZoneId.of("Asia/Damascus")));
+
+        int updated = jdbc.update("""
+            update core.notes
+               set status = 'APPROVED', approved_by = ?, approved_at = now(),
+                   updated_by = ?, reviewer_id = null, return_reason = null
+             where id = ? and not is_deleted
+               and status = 'UNDER_REVIEW' and reviewer_id = ?
+               and (created_by is null or created_by <> ?)
+            """, actorId, actorId, noteId, actorId, actorId);
+        ensureSingle(updated);
+        // Keep review_started_at: migration 033 defines it as the approval cycle.
+        record(noteId, actorId, "APPROVE", "APPROVE_NOTE", null, "اعتماد مذكرة", before);
+    }
+
     private void requireActiveRole(UUID actorId, boolean adminOnly) {
         List<String> roles = jdbc.query("""
             select r.code
@@ -105,7 +202,8 @@ public class JdbcNoteReviewTransitionRepository implements NoteReviewTransitionR
 
     private State lock(UUID noteId, LocalDateTime expectedUpdatedAt) {
         List<State> states = jdbc.query("""
-            select status, reviewer_id, created_by, updated_at, review_started_at, return_reason
+            select status, reviewer_id, created_by, updated_at, review_started_at, return_reason,
+                   approved_by, approved_at
               from core.notes
              where id = ? and not is_deleted
              for update
@@ -115,7 +213,9 @@ public class JdbcNoteReviewTransitionRepository implements NoteReviewTransitionR
                 rs.getObject("created_by", UUID.class),
                 rs.getObject("updated_at", LocalDateTime.class),
                 rs.getObject("review_started_at", LocalDateTime.class),
-                rs.getString("return_reason")
+                rs.getString("return_reason"),
+                rs.getObject("approved_by", UUID.class),
+                rs.getObject("approved_at", LocalDateTime.class)
             ), noteId);
         if (states.isEmpty()) {
             throw new NoteReviewConflict("المذكرة غير موجودة أو حُذفت.");
@@ -135,6 +235,11 @@ public class JdbcNoteReviewTransitionRepository implements NoteReviewTransitionR
 
     private void record(UUID noteId, UUID actorId, String action, String reason,
                         String description, State before) {
+        record(noteId, actorId, action, action, reason, description, before);
+    }
+
+    private void record(UUID noteId, UUID actorId, String action, String auditAction,
+                        String reason, String description, State before) {
         jdbc.update("""
             insert into core.note_review_history(note_id, action, reason, user_id)
             values (?, ?, ?, ?)
@@ -152,24 +257,27 @@ public class JdbcNoteReviewTransitionRepository implements NoteReviewTransitionR
                 jsonb_build_object(
                     'status', ?, 'reviewerId', cast(? as text),
                     'reviewStartedAt', cast(? as timestamp),
-                    'returnReason', cast(? as text), 'updatedAt', cast(? as timestamp)
+                    'returnReason', cast(? as text), 'updatedAt', cast(? as timestamp),
+                    'approvedBy', cast(? as text), 'approvedAt', cast(? as timestamp)
                 ),
                 jsonb_build_object(
                     'status', ?, 'reviewerId', cast(? as text),
                     'reviewStartedAt', cast(? as timestamp),
-                    'returnReason', cast(? as text), 'updatedAt', cast(? as timestamp)
+                    'returnReason', cast(? as text), 'updatedAt', cast(? as timestamp),
+                    'approvedBy', cast(? as text), 'approvedAt', cast(? as timestamp)
                 )
             )
             """,
-            actorId, action, noteId, description,
+            actorId, auditAction, noteId, description,
             before.status(), asString(before.reviewerId()),
             before.reviewStartedAt(), before.returnReason(), before.updatedAt(),
+            asString(before.approvedBy()), before.approvedAt(),
             after.status(), asString(after.reviewerId()),
-            after.reviewStartedAt(), after.returnReason(), after.updatedAt());
+            after.reviewStartedAt(), after.returnReason(), after.updatedAt(),
+            asString(after.approvedBy()), after.approvedAt());
     }
 
     private String asString(UUID id) {
         return id == null ? null : id.toString();
     }
 }
-

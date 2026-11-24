@@ -40,6 +40,13 @@ public final class NoteReviewTransitionService {
         repository.returnForCorrection(noteId, actor.id(), requiredReason(reason), expectedUpdatedAt);
     }
 
+    public void approve(UserProfile actor, UUID noteId, LocalDateTime expectedUpdatedAt) {
+        authorize(actor, false);
+        gate.requireWritable();
+        validateNoteId(noteId);
+        repository.approve(noteId, actor.id(), expectedUpdatedAt);
+    }
+
     public void release(UserProfile actor, UUID noteId, String reason) {
         authorize(actor, true);
         gate.requireWritable();
@@ -77,4 +84,3 @@ public final class NoteReviewTransitionService {
         }
     }
 }
-
