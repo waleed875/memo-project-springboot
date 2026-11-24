@@ -61,9 +61,9 @@ class NoteDraftEditPostgresIT {
         jdbc.execute("""
             create schema if not exists common;
             create or replace function common.set_updated_at() returns trigger
-            language plpgsql as $
+            language plpgsql as $memo$
             begin new.updated_at = now(); return new; end;
-            $;
+            $memo$;
             create trigger trg_notes_updated_for_edit
               before update on core.notes
               for each row execute function common.set_updated_at();
