@@ -21,6 +21,8 @@ import io.github.waleed875.memo.modules.notes.application.NoteReviewTransitionSe
 import io.github.waleed875.memo.modules.notes.application.NoteReviewTransitionRepository;
 import io.github.waleed875.memo.modules.notes.application.NoteDraftEditRepository;
 import io.github.waleed875.memo.modules.notes.application.NoteDraftEditService;
+import io.github.waleed875.memo.modules.notes.application.AdminNoteTextEditRepository;
+import io.github.waleed875.memo.modules.notes.application.AdminNoteTextEditService;
 import java.time.Clock;
 import java.time.ZoneId;
 import io.github.waleed875.memo.modules.notes.domain.NoteReadPolicy;
@@ -30,6 +32,14 @@ import org.springframework.context.annotation.Configuration;
 /** Compose note read use cases without coupling domain to HTTP or JDBC. */
 @Configuration
 public class NotesWiring {
+    @Bean
+    AdminNoteTextEditService adminNoteTextEditService(
+        AdminNoteTextEditRepository repository, MasterDataWriteGate gate
+    ) {
+        return new AdminNoteTextEditService(repository, gate);
+    }
+
+
     @Bean
     NoteDraftEditService noteDraftEditService(
         NoteDraftEditRepository repository, MasterDataWriteGate gate
