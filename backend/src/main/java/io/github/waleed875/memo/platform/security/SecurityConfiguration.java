@@ -2,6 +2,7 @@ package io.github.waleed875.memo.platform.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -22,6 +23,14 @@ public class SecurityConfiguration {
                 "/api/auth/csrf", "/api/auth/login", "/api/auth/me", "/api/auth/logout",
                 "/api/auth/change-password",
                 "/api/admin/csrf", "/api/admin/login", "/api/admin/session", "/api/admin/logout"
+            ).permitAll()
+            // Public at the filter boundary only: MasterDataQueryService
+            // performs application-level session authorization before any SQL.
+            .requestMatchers(HttpMethod.GET,
+                "/api/master/companies",
+                "/api/master/companies/{id}",
+                "/api/master/factories",
+                "/api/master/production-lines"
             ).permitAll()
             .anyRequest().denyAll()
         );
