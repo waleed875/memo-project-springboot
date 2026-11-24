@@ -70,6 +70,11 @@ public final class LegacyAuthController {
     public ResponseEntity<Map<String, Object>> login(
         @RequestBody LoginRequest credentials, HttpServletRequest request
     ) {
+        // A failed or forced-password-change login must not leave an earlier
+        // authenticated principal active in this browser session.
+        HttpSession existing = request.getSession(false);
+        if (existing != null) existing.removeAttribute(SESSION_KEY);
+
         FixedWindowAttemptLimiter.Decision decision = limiter.acquire(request.getRemoteAddr());
         if (!decision.allowed()) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
