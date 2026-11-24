@@ -33,3 +33,16 @@ The code follows a **modular monolith**: `modules/<bounded-context>/{domain,appl
 - `platform/security`: Spring Security configuration (framework layer).
 
 The ArchUnit test suite enforces separation and no module dependency cycles during `mvn verify`. No actual business HTTP endpoints are implemented yet; the authorization policies are **not wired to controllers**.
+
+## Identity vertical slice (draft PR)
+
+The identity module now includes framework-independent sign-in/session validation,
+a password-change use case with conditional PostgreSQL update, optional security
+audit events in `updates.audit_log`, and a bounded local failed-attempt limiter.
+The legacy `/api/auth` and `/api/admin` login/session routes are partially
+ported and CSRF-protected.
+
+**Not production-ready**: the local limiter is not distributed, there is no
+real-schema PostgreSQL integration fixture, security audit is best-effort,
+and BCrypt/React parity has not yet been verified using the original runtime.
+See [identity migration document](../docs/IDENTITY_AUTH_MIGRATION.md).
