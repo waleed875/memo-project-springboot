@@ -6,6 +6,11 @@ import io.github.waleed875.memo.modules.masterdata.application.MasterDataOperati
 import io.github.waleed875.memo.modules.masterdata.application.NoteDefinitionWriter;
 import io.github.waleed875.memo.modules.masterdata.domain.NoteTypeFieldDefinition;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,6 +47,7 @@ class NoteDefinitionWritePostgresIT {
         UUID.fromString("f0a00000-0000-4000-8000-000000000003");
 
     private static JdbcTemplate jdbc;
+    private static DriverManagerDataSource dataSource;
     private static NoteDefinitionWriter writer;
 
     @BeforeAll
@@ -49,6 +55,7 @@ class NoteDefinitionWritePostgresIT {
         var ds = new DriverManagerDataSource(
             postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword()
         );
+        dataSource = ds;
         new ResourceDatabasePopulator(new ClassPathResource("postgres-masterdata-schema.sql"))
             .execute(ds);
         jdbc = new JdbcTemplate(ds);
@@ -172,5 +179,41 @@ class NoteDefinitionWritePostgresIT {
             "select count(*) from core.note_type_fields", Long.class));
         assertEquals(0L, jdbc.queryForObject(
             "select count(*) from audit.logs", Long.class));
+    }
+
+    @Test
+    void writesWaitForTheSameTransactionScopedTypeAdvisoryLock() throws Exception {
+        var executor = Executors.newSingleThreadExecutor();
+        try {
+            var transaction = new TransactionTemplate(new JdbcTransactionManager(dataSource));
+            var blocked = transaction.execute(status -> {
+                String key = "note-type-fields:" + TYPE.toString().replace("-", "");
+                jdbc.queryForObject(
+                    "select pg_advisory_xact_lock(hashtextextended(?, 712))",
+                    (rs, row) -> rs.getObject(1), key);
+                var began = new CountDownLatch(1);
+                var future = executor.submit(() -> {
+                    began.countDown();
+                    return writer.save(definition(null, null, "LOCK", "حقل", true), ACTOR);
+                });
+                try {
+                    assertTrue(began.await(5, TimeUnit.SECONDS));
+                    // Writer has not acquired the lock while our transaction holds it.
+                    assertThrows(TimeoutException.class,
+                        () -> future.get(300, TimeUnit.MILLISECONDS));
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(ex);
+                }
+                return future;
+            });
+            assertNotNull(blocked);
+            var saved = blocked.get(10, TimeUnit.SECONDS);
+            assertNotNull(saved.id());
+            assertEquals(1L, jdbc.queryForObject(
+                "select count(*) from core.note_type_fields", Long.class));
+        } finally {
+            executor.shutdownNow();
+        }
     }
 }
