@@ -27,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
  * Requires the currently active ADMIN role and an exact note revision.
  */
 @Repository
-public final class JdbcAdminNoteIndicatorEditRepository implements AdminNoteIndicatorEditRepository {
+public class JdbcAdminNoteIndicatorEditRepository implements AdminNoteIndicatorEditRepository {
     private record Existing(
         UUID noteTypeId, UUID companyId, String noteNumber, LocalDate writingDate,
         LocalDate arrivalAt, NoteStatus status, UUID reviewerId,
