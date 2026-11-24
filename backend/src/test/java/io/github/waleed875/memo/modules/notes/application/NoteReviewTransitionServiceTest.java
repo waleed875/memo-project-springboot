@@ -21,6 +21,9 @@ class NoteReviewTransitionServiceTest {
         public void returnForCorrection(UUID id, UUID user, String value, LocalDateTime expected) {
             calls++; action = "return"; reason = value; actor = user;
         }
+        public void approve(UUID id, UUID user, LocalDateTime expected) {
+            calls++; action = "approve"; actor = user;
+        }
         public void release(UUID id, UUID user, String value) {
             calls++; action = "release"; reason = value; actor = user;
         }
@@ -70,7 +73,8 @@ class NoteReviewTransitionServiceTest {
         assertEquals("correction", r.reason);
         svc.release(actor("ADMIN"), id, "  release  ");
         assertEquals("release", r.reason);
-        assertEquals(3, r.calls);
+        svc.approve(reviewer, id, null);
+        assertEquals("approve", r.action);
+        assertEquals(4, r.calls);
     }
 }
-

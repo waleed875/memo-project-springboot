@@ -106,10 +106,20 @@ class NoteReviewTransitionControllerTest {
             .andExpect(jsonPath("$.message").value("stale"));
     }
 
-    @Test void approveRemainsClosed() throws Exception {
-        user("REVIEWER");
-        mvc.perform(post("/api/notes/{id}/approve", UUID.randomUUID()).with(csrf()))
+    @Test void approveRequiresCsrfAndReviewerAndUsesSessionActor() throws Exception {
+        UUID id = UUID.randomUUID();
+        var reviewer = user("REVIEWER");
+        mvc.perform(post("/api/notes/{id}/approve", id)).andExpect(status().isForbidden());
+        verify(repo, never()).approve(any(), any(), any());
+
+        mvc.perform(post("/api/notes/{id}/approve", id).with(csrf())
+            .contentType("application/json").content("{\"expectedUpdatedAt\":\"" + STAMP + "\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.message").value("تم اعتماد المذكرة بنجاح."));
+        verify(repo).approve(id, reviewer.id(), LocalDateTime.parse(STAMP));
+
+        user("DATA_ENTRY");
+        mvc.perform(post("/api/notes/{id}/approve", id).with(csrf()))
             .andExpect(status().isForbidden());
     }
 }
-
