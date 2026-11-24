@@ -2,7 +2,6 @@ package io.github.waleed875.memo.modules.notes.infrastructure;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.waleed875.memo.modules.notes.application.NoteCreateCommand;
 import io.github.waleed875.memo.modules.notes.application.NoteCreateConflict;
 import io.github.waleed875.memo.modules.notes.application.NoteCreator;
@@ -66,7 +65,7 @@ class NoteCreatePostgresIT {
         jdbc = new JdbcTemplate(ds);
         var proxy = new TransactionProxyFactoryBean();
         proxy.setTarget(new JdbcNoteCreator(jdbc,
-            new NamedParameterJdbcTemplate(ds), new ObjectMapper()));
+            new NamedParameterJdbcTemplate(ds)));
         proxy.setTransactionManager(new JdbcTransactionManager(ds));
         proxy.setTransactionAttributeSource(new AnnotationTransactionAttributeSource());
         proxy.setProxyInterfaces(new Class<?>[]{NoteCreator.class});

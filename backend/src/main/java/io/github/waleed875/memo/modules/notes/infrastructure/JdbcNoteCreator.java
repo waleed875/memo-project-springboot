@@ -1,8 +1,5 @@
 package io.github.waleed875.memo.modules.notes.infrastructure;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.github.waleed875.memo.modules.notes.application.NoteCreateCommand;
 import io.github.waleed875.memo.modules.notes.application.NoteCreateConflict;
 import io.github.waleed875.memo.modules.notes.application.NoteCreator;
@@ -13,6 +10,9 @@ import io.github.waleed875.memo.modules.notes.domain.NoteSaveValidationException
 import io.github.waleed875.memo.modules.notes.domain.RequiredNoteField;
 import io.github.waleed875.memo.modules.notes.domain.NoteStatus;
 import java.nio.charset.StandardCharsets;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.Types;
@@ -40,13 +40,10 @@ public class JdbcNoteCreator implements NoteCreator {
     private static final UUID ZERO = new UUID(0, 0);
     private final JdbcTemplate jdbc;
     private final NamedParameterJdbcTemplate named;
-    private final ObjectMapper mapper;
 
-    public JdbcNoteCreator(JdbcTemplate jdbc, NamedParameterJdbcTemplate named,
-                           ObjectMapper mapper) {
+    public JdbcNoteCreator(JdbcTemplate jdbc, NamedParameterJdbcTemplate named) {
         this.jdbc = jdbc;
         this.named = named;
-        this.mapper = mapper;
     }
 
     private void lock(String key, int seed) {
@@ -88,35 +85,53 @@ public class JdbcNoteCreator implements NoteCreator {
      */
     private String fingerprint(NoteCreateCommand command) {
         NoteSaveCandidate n = command.candidate();
-        ObjectNode payload = mapper.createObjectNode();
-        payload.put("javaContractVersion", "note-create-core-1");
-        payload.put("noteNumber", n.noteNumber());
-        payload.put("companyId", n.companyId() == null ? null : n.companyId().toString());
-        payload.put("noteTypeId", n.noteTypeId() == null ? null : n.noteTypeId().toString());
-        payload.put("factoryId", n.factoryId() == null ? null : n.factoryId().toString());
-        payload.put("productionLineId",
-            n.productionLineId() == null ? null : n.productionLineId().toString());
-        payload.put("writingDate", n.writingDate() == null ? null : n.writingDate().toString());
-        payload.put("arrivalAt", n.arrivalAt() == null ? null : n.arrivalAt().toString());
-        payload.put("saveAsDraft", n.saveAsDraft());
-        payload.put("markAllIndicatorsCorrect", n.markAllIndicatorsCorrect());
-        payload.put("notes", command.notes());
-        ArrayNode values = payload.putArray("fieldValues");
-        if (n.fieldValues() != null) n.fieldValues().stream()
-            .sorted(java.util.Comparator.comparing(x -> x.fieldId() == null
-                ? "" : x.fieldId().toString()))
-            .forEach(v -> {
-                ObjectNode item = values.addObject();
-                item.put("fieldId", v.fieldId() == null ? null : v.fieldId().toString());
-                if (v.value() == null) item.putNull("fieldValue");
-                else item.put("fieldValue", v.value().ordinal());
-            });
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(
-                mapper.writeValueAsString(payload).getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest);
-        } catch (NoSuchAlgorithmException | com.fasterxml.jackson.core.JsonProcessingException ex) {
+            // Length-prefixed canonical UTF-8 values: no delimiter ambiguity.
+            // Independent of JSON library implementation and field order.
+            var buffer = new ByteArrayOutputStream();
+            var data = new DataOutputStream(buffer);
+            put(data, "note-create-core-1");
+            put(data, n.noteNumber());
+            put(data, n.companyId());
+            put(data, n.noteTypeId());
+            put(data, n.factoryId());
+            put(data, n.productionLineId());
+            put(data, n.writingDate());
+            put(data, n.arrivalAt());
+            data.writeBoolean(n.saveAsDraft());
+            data.writeBoolean(n.markAllIndicatorsCorrect());
+            put(data, command.notes());
+            if (n.fieldValues() == null) {
+                data.writeInt(-1);
+            } else {
+                data.writeInt(n.fieldValues().size());
+                n.fieldValues().stream()
+                    .sorted(java.util.Comparator.comparing(x ->
+                        x.fieldId() == null ? "" : x.fieldId().toString()))
+                    .forEachOrdered(v -> {
+                        try {
+                            put(data, v.fieldId());
+                            data.writeInt(v.value() == null ? -1 : v.value().ordinal());
+                        } catch (IOException ex) {
+                            throw new java.io.UncheckedIOException(ex);
+                        }
+                    });
+            }
+            data.flush();
+            return HexFormat.of().formatHex(
+                MessageDigest.getInstance("SHA-256").digest(buffer.toByteArray()));
+        } catch (IOException | NoSuchAlgorithmException ex) {
             throw new IllegalStateException("Cannot fingerprint note creation", ex);
+        }
+    }
+
+    private static void put(DataOutputStream data, Object value) throws IOException {
+        if (value == null) {
+            data.writeInt(-1);
+        } else {
+            byte[] utf8 = value.toString().getBytes(StandardCharsets.UTF_8);
+            data.writeInt(utf8.length);
+            data.write(utf8);
         }
     }
 
