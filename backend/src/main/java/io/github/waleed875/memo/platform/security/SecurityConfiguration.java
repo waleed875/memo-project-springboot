@@ -34,6 +34,7 @@ public class SecurityConfiguration {
                 "/api/master/note-types",
                 "/api/master/note-types/{id}/fields"
             ).permitAll()
+            .requestMatchers(HttpMethod.GET, "/api/notes/{id}").permitAll()
             .requestMatchers(HttpMethod.POST,
                 "/api/master/note-types/fields/preview",
                 "/api/master/note-types/fields").permitAll()
