@@ -38,9 +38,10 @@ public class SecurityConfiguration {
             // /api/notes/{id} must never accidentally open them.
             .requestMatchers(HttpMethod.GET,
                 "/api/notes/review-queue", "/api/notes/incomplete-indicators",
-                "/api/notes/duplicates/check", "/api/notes/link-candidates"
+                "/api/notes/link-candidates"
             ).denyAll()
-            .requestMatchers(HttpMethod.GET, "/api/notes", "/api/notes/{id}").permitAll()
+            .requestMatchers(HttpMethod.GET, "/api/notes", "/api/notes/{id}",
+                "/api/notes/duplicates/check").permitAll()
             .requestMatchers(HttpMethod.DELETE, "/api/notes/{id}").permitAll()
             .requestMatchers(HttpMethod.POST,
                 "/api/master/note-types/fields/preview",
