@@ -1,0 +1,35 @@
+# Secrets and environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+**/secrets/**
+**/App_Data/**
+# Java
+.gradle/
+build/
+target/
+out/
+*.class
+# Frontend
+node_modules/
+dist/
+coverage/
+# IDEs
+.idea/
+.vscode/
+*.iml
+# Runtime
+*.log
+*.db
+.tmp/
+# Binary releases and backups
+*.zip
+*.tar.gz
+*.bak
+*.dump
+*.backup
+.DS_Store
