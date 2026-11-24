@@ -4,6 +4,8 @@ import io.github.waleed875.memo.modules.notes.application.NoteCreateCommand;
 import io.github.waleed875.memo.modules.notes.application.NoteCreateConflict;
 import io.github.waleed875.memo.modules.notes.application.NoteCreator;
 import io.github.waleed875.memo.modules.notes.domain.NoteNumberNormalizer;
+import io.github.waleed875.memo.modules.notes.domain.NoteAttachment;
+import io.github.waleed875.memo.modules.notes.domain.NoteAttachmentPolicy;
 import io.github.waleed875.memo.modules.notes.domain.NoteSaveCandidate;
 import io.github.waleed875.memo.modules.notes.domain.NoteSavePolicy;
 import io.github.waleed875.memo.modules.notes.domain.NoteSaveValidationException;
@@ -90,7 +92,7 @@ public class JdbcNoteCreator implements NoteCreator {
             // Independent of JSON library implementation and field order.
             var buffer = new ByteArrayOutputStream();
             var data = new DataOutputStream(buffer);
-            put(data, "note-create-core-1");
+            put(data, "note-create-core-2");
             put(data, n.noteNumber());
             put(data, n.companyId());
             put(data, n.noteTypeId());
@@ -101,6 +103,26 @@ public class JdbcNoteCreator implements NoteCreator {
             data.writeBoolean(n.saveAsDraft());
             data.writeBoolean(n.markAllIndicatorsCorrect());
             put(data, command.notes());
+            NoteAttachment attachment = command.attachment();
+            if (attachment == null) {
+                data.writeBoolean(false);
+            } else {
+                data.writeBoolean(true);
+                put(data, attachment.fileName());
+                byte[] dataBytes = attachment.bytes();
+                byte[] digest = MessageDigest.getInstance("SHA-256").digest(dataBytes);
+                data.writeInt(dataBytes.length);
+                data.writeInt(digest.length);
+                data.write(digest);
+            }
+            data.writeInt(command.relatedNoteIds().size());
+            command.relatedNoteIds().stream()
+                .map(UUID::toString)
+                .sorted()
+                .forEachOrdered(x -> {
+                    try { put(data, x); }
+                    catch (IOException ex) { throw new java.io.UncheckedIOException(ex); }
+                });
             if (n.fieldValues() == null) {
                 data.writeInt(-1);
             } else {
@@ -169,6 +191,47 @@ public class JdbcNoteCreator implements NoteCreator {
         }
     }
 
+    /**
+     * Reject malformed, foreign, deleted, duplicate, and self-links before
+     * writing any link row. The legacy migrated DB must retain its own
+     * validation triggers to protect concurrent operations and other clients.
+     */
+    private void validateLinks(UUID noteId, NoteSaveCandidate candidate,
+                               List<UUID> relatedIds) {
+        if (relatedIds.size() > 100) {
+            throw new NoteSaveValidationException("عدد المذكرات المرتبطة يتجاوز الحد.");
+        }
+        java.util.Set<UUID> seen = new java.util.HashSet<>();
+        String currentType = jdbc.queryForObject(
+            "select code from core.note_types where id = ?",
+            String.class, candidate.noteTypeId());
+        if (!"ENTRY".equals(currentType) && !"EXIT".equals(currentType)) {
+            if (!relatedIds.isEmpty())
+                throw new NoteCreateConflict("الربط متاح فقط بين مذكرات الإدخال والإخراج.");
+            return;
+        }
+        for (UUID related : relatedIds) {
+            if (related == null || ZERO.equals(related) || noteId.equals(related)
+                || !seen.add(related)) {
+                throw new NoteCreateConflict("الربط يحتوي على معرف غير صالح أو مكرر.");
+            }
+        }
+        if (relatedIds.isEmpty()) return;
+        var params = new MapSqlParameterSource()
+            .addValue("ids", relatedIds).addValue("company", candidate.companyId())
+            .addValue("expected", "ENTRY".equals(currentType) ? "EXIT" : "ENTRY");
+        Integer eligible = named.queryForObject("""
+            select count(*) from core.notes n
+            join core.note_types nt on nt.id = n.note_type_id
+            where n.id in (:ids) and not n.is_deleted
+              and n.company_id = :company and nt.code = :expected
+            """, params, Integer.class);
+        if (eligible == null || eligible != relatedIds.size()) {
+            throw new NoteCreateConflict(
+                "المذكرات المرتبطة يجب أن تكون موجودة وفعالة ومن الشركة نفسها وبالنوع المقابل.");
+        }
+    }
+
     private List<RequiredNoteField> definitions(UUID typeId) {
         return jdbc.query("""
             select nf.id as field_id, nf.name_ar as field_name,
@@ -224,6 +287,9 @@ public class JdbcNoteCreator implements NoteCreator {
             || command.noteId() == null || ZERO.equals(command.noteId())) {
             throw new NoteSaveValidationException("عملية إنشاء المذكرة غير صالحة.");
         }
+        // Validate bytes before any DB locks or reservations. Fingerprint
+        // includes the full content digest and link IDs, including on replay.
+        String attachmentType = NoteAttachmentPolicy.validate(command.attachment());
         String fingerprint = fingerprint(command);
         UUID operationId = command.operationId();
         UUID noteId = command.noteId();
@@ -286,19 +352,24 @@ public class JdbcNoteCreator implements NoteCreator {
         }
 
         ensureNoDuplicate(command, normalized, numeric.getAsLong());
+        validateLinks(noteId, c, command.relatedNoteIds());
 
         jdbc.update("""
             insert into core.notes(
                 id, note_number, note_type_id, company_id,
                 factory_id, production_line_id, writing_date, arrival_at,
                 note_number_normalized, note_number_value, note_year,
-                notes, status, created_by, updated_by, is_loot, is_invoice)
-            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, false, false)
+                notes, status, created_by, updated_by,
+                attachment_file_name, attachment_content_type, attachment_data,
+                is_loot, is_invoice)
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, false, false)
             """, noteId, c.noteNumber(), c.noteTypeId(), c.companyId(),
             c.factoryId(), c.productionLineId(), c.writingDate(), c.arrivalAt(),
             normalized, numeric.getAsLong(),
             c.writingDate() == null ? null : c.writingDate().getYear(),
-            command.notes(), status.name(), actor, actor);
+            command.notes(), status.name(), actor, actor,
+            command.attachment() == null ? null : command.attachment().fileName(),
+            attachmentType, command.attachment() == null ? null : command.attachment().bytes());
 
         for (var value : filtered.fieldValues()) {
             jdbc.update("""
@@ -307,6 +378,33 @@ public class JdbcNoteCreator implements NoteCreator {
                 values (?, ?, ?, ?, null)
                 """, UUID.randomUUID(), noteId, value.fieldId(),
                 (short) value.value().ordinal());
+        }
+
+        if (command.attachment() != null) {
+            byte[] bytes = command.attachment().bytes();
+            jdbc.update("""
+                insert into core.note_attachments(
+                    note_id, file_name, content_type, file_data, file_size, created_by)
+                values (?, ?, ?, ?, ?, ?)
+                """, noteId, command.attachment().fileName(), attachmentType,
+                bytes, (long) bytes.length, actor);
+        }
+
+        for (UUID related : command.relatedNoteIds()) {
+            // In the full migration 063/070 schema, insert triggers also
+            // maintain compatible source references; never bypass them.
+            jdbc.update("""
+                insert into core.note_links(
+                    source_note_id, related_note_id, created_by)
+                values (?, ?, ?)
+                """, noteId, related, actor);
+            jdbc.update("""
+                insert into audit.logs(
+                    user_id, action_type, schema_name, table_name,
+                    record_id, description)
+                values (?, 'LINK_NOTES', 'core', 'note_links',
+                        ?, 'ربط المذكرة بمذكرة مقابلة أثناء الإنشاء')
+                """, actor, noteId);
         }
 
         String action = c.saveAsDraft() ? "CREATE_DRAFT" : "SUBMIT_FOR_REVIEW";
