@@ -7,6 +7,11 @@ import io.github.waleed875.memo.modules.notes.application.NoteDeleteRepository;
 import io.github.waleed875.memo.modules.masterdata.application.MasterDataWriteGate;
 import io.github.waleed875.memo.modules.notes.application.NoteSearchReader;
 import io.github.waleed875.memo.modules.notes.application.NoteSearchService;
+import io.github.waleed875.memo.modules.notes.application.NoteSavePreflight;
+import io.github.waleed875.memo.modules.notes.application.NoteSaveCatalog;
+import java.time.Clock;
+import java.time.ZoneId;
+import io.github.waleed875.memo.modules.masterdata.application.MasterDataWriteGate;
 import io.github.waleed875.memo.modules.notes.domain.NoteReadPolicy;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,6 +19,11 @@ import org.springframework.context.annotation.Configuration;
 /** Compose note read use cases without coupling domain to HTTP or JDBC. */
 @Configuration
 public class NotesWiring {
+    @Bean
+    NoteSavePreflight noteSavePreflight(NoteSaveCatalog catalog, MasterDataWriteGate gate) {
+        return new NoteSavePreflight(catalog, gate, Clock.system(ZoneId.of("Asia/Damascus")));
+    }
+
     @Bean
     NoteDeleteService noteDeleteService(NoteDeleteRepository repository, MasterDataWriteGate gate) {
         return new NoteDeleteService(repository, gate);
