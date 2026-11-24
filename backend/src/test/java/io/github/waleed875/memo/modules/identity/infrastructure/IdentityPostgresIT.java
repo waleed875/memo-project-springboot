@@ -33,8 +33,8 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @Testcontainers
 class IdentityPostgresIT {
     @Container
-    static final PostgreSQLContainer<?> postgres =
-        new PostgreSQLContainer<>("postgres:16-bookworm")
+    static final PostgreSQLContainer postgres =
+        new PostgreSQLContainer("postgres:16-bookworm")
             .withDatabaseName("memo_auth_it")
             .withUsername("memo_it")
             .withPassword("memo_only_test_password");
