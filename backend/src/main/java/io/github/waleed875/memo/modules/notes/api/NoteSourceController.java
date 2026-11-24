@@ -68,7 +68,7 @@ public class NoteSourceController {
     public Map<String, String> save(
         @PathVariable UUID id, @RequestBody SourceRequest body, HttpServletRequest request
     ) {
-        if (body == null || body.sourceType() == null) {
+        if (body == null || body.sourceType() == null || body.sourceType().isBlank()) {
             throw new NoteSaveValidationException("نوع المصدر المحدد غير صالح.");
         }
         NoteSourceType type;
@@ -82,6 +82,7 @@ public class NoteSourceController {
         List<NoteSourceDraft.ExitReference> refs = new ArrayList<>();
         if (body.exitReferences() != null) {
             for (var ref : body.exitReferences()) {
+                if (ref == null) throw new NoteSaveValidationException("مرجع الإخراج غير صالح.");
                 refs.add(new NoteSourceDraft.ExitReference(
                     ref.exitNoteId(), ref.referenceOrder() == null ? 0 : ref.referenceOrder()));
             }
@@ -89,6 +90,7 @@ public class NoteSourceController {
         List<NoteSourceDraft.Invoice> invoices = new ArrayList<>();
         if (body.invoices() != null) {
             for (var invoice : body.invoices()) {
+                if (invoice == null) throw new NoteSaveValidationException("بيانات الفاتورة غير صالحة.");
                 LocalDate date = null;
                 if (invoice.invoiceDate() != null && !invoice.invoiceDate().isBlank()) {
                     try { date = LocalDate.parse(invoice.invoiceDate()); }
