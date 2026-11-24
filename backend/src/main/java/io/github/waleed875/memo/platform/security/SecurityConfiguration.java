@@ -41,6 +41,7 @@ public class SecurityConfiguration {
                 "/api/notes/duplicates/check", "/api/notes/link-candidates"
             ).denyAll()
             .requestMatchers(HttpMethod.GET, "/api/notes", "/api/notes/{id}").permitAll()
+            .requestMatchers(HttpMethod.DELETE, "/api/notes/{id}").permitAll()
             .requestMatchers(HttpMethod.POST,
                 "/api/master/note-types/fields/preview",
                 "/api/master/note-types/fields").permitAll()
