@@ -89,4 +89,28 @@ class LegacyAuthControllerTest {
         mvc.perform(post("/api/admin/apply-migrations").with(csrf()))
             .andExpect(status().isForbidden());
     }
+
+    @Test void failedReLoginClearsPreviousIdentity() throws Exception {
+        validLoginAccount();
+        MvcResult authenticated = mvc.perform(post("/api/admin/login").with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\\"username\\":\\"admin\\",\\"password\\":\\"valid-password\\"}"))
+            .andExpect(status().isOk()).andReturn();
+        MockHttpSession session = (MockHttpSession) authenticated.getRequest().getSession(false);
+        mvc.perform(post("/api/admin/login").session(session).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\\"username\\":\\"admin\\",\\"password\\":\\"incorrect\\"}"))
+            .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/admin/session").session(session))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.authenticated").value(false));
+    }
+
+    @Test void changePasswordRequiresCsrfAndHidesOtherBusinessRoutes() throws Exception {
+        mvc.perform(post("/api/auth/change-password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\\"username\\":\\"admin\\",\\"currentPassword\\":\\"old\\",\\"newPassword\\":\\"new-password\\"}"))
+            .andExpect(status().isForbidden());
+        mvc.perform(get("/api/admin/users")).andExpect(status().isForbidden());
+    }
 }
