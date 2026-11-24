@@ -6,6 +6,7 @@ import io.github.waleed875.memo.modules.notes.application.NoteCreateCommand;
 import io.github.waleed875.memo.modules.notes.application.NoteCreateConflict;
 import io.github.waleed875.memo.modules.notes.application.NoteCreator;
 import io.github.waleed875.memo.modules.notes.domain.IndicatorValue;
+import io.github.waleed875.memo.modules.notes.domain.NoteAttachment;
 import io.github.waleed875.memo.modules.notes.domain.NoteSaveCandidate;
 import io.github.waleed875.memo.modules.notes.domain.NoteSaveValidationException;
 import java.time.LocalDate;
@@ -45,6 +46,8 @@ class NoteCreatePostgresIT {
     static final UUID SECOND = UUID.fromString("a1500000-0000-4000-8000-000000000003");
     static final UUID COMPANY = UUID.fromString("a1500000-0000-4000-8000-000000000004");
     static final UUID TYPE = UUID.fromString("a1500000-0000-4000-8000-000000000005");
+    static final UUID EXIT_TYPE = UUID.fromString("a1500000-0000-4000-8000-000000000008");
+    static final UUID LINK_TARGET = UUID.fromString("a1500000-0000-4000-8000-000000000009");
     static final UUID FIELD = UUID.fromString("a1500000-0000-4000-8000-000000000006");
     static final UUID INACTIVE = UUID.fromString("a1500000-0000-4000-8000-000000000007");
     static final LocalDate TODAY = LocalDate.of(2026, 11, 24);
@@ -60,7 +63,8 @@ class NoteCreatePostgresIT {
             new ClassPathResource("postgres-masterdata-schema.sql"),
             new ClassPathResource("postgres-notes-detail-schema.sql"),
             new ClassPathResource("postgres-notes-duplicate-schema.sql"),
-            new ClassPathResource("postgres-notes-create-schema.sql")
+            new ClassPathResource("postgres-notes-create-schema.sql"),
+            new ClassPathResource("postgres-notes-create-attachments-links.sql")
         ).execute(ds);
         jdbc = new JdbcTemplate(ds);
         var proxy = new TransactionProxyFactoryBean();
@@ -77,7 +81,10 @@ class NoteCreatePostgresIT {
             values (?,'first','test','الأول',?), (?,'second','test','الثاني',?)
             """, ACTOR,ROLE,SECOND,ROLE);
         jdbc.update("insert into core.companies(id,name) values (?,'شركة')", COMPANY);
-        jdbc.update("insert into core.note_types(id,code,name_ar) values (?,'ENTRY','إدخال')", TYPE);
+        jdbc.update("""
+            insert into core.note_types(id,code,name_ar)
+            values (?,'ENTRY','إدخال'), (?,'EXIT','إخراج')
+            """, TYPE, EXIT_TYPE);
         jdbc.update("""
             insert into core.note_fields(id,code,name_ar,is_active)
             values (?,'REQ','إلزامي',true), (?,'OLD','معطل',false)
@@ -98,9 +105,19 @@ class NoteCreatePostgresIT {
     void reset() {
         jdbc.update("delete from core.note_create_operations");
         jdbc.update("delete from audit.logs");
+        jdbc.update("delete from core.note_attachments");
+        jdbc.update("delete from core.note_links");
         jdbc.update("delete from core.note_review_history");
         jdbc.update("delete from core.note_field_values");
         jdbc.update("delete from core.notes");
+        jdbc.update("""
+            insert into core.notes(
+                id, company_id, note_type_id, note_number,
+                note_number_normalized, note_number_value,
+                writing_date, arrival_at, created_by, updated_by)
+            values (?, ?, ?, '90000', '90000', 90000,
+                    date '2026-11-20', date '2026-11-24', ?, ?)
+            """, LINK_TARGET, COMPANY, EXIT_TYPE, ACTOR, ACTOR);
     }
 
     private NoteCreateCommand command(String number, boolean draft) {
@@ -268,6 +285,84 @@ class NoteCreatePostgresIT {
         } finally {
             pool.shutdownNow();
         }
+    }
+
+    private byte[] samplePdf() {
+        return "%PDF-1.4\\n1 0 obj\\nendobj\\n%%EOF\\n"
+            .getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+    }
+
+    @Test
+    void attachmentAndLinkSaveAtomicallyAndReplayWithoutReinserting() {
+        var original = command("141", false);
+        var enhanced = new NoteCreateCommand(original.operationId(), original.noteId(),
+            original.candidate(), original.notes(),
+            new NoteAttachment("proof.pdf", samplePdf()), List.of(LINK_TARGET));
+        creator.create(enhanced, ACTOR, TODAY);
+        assertArrayEquals(samplePdf(), jdbc.queryForObject(
+            "select attachment_data from core.notes where id = ?", byte[].class, enhanced.noteId()));
+        assertEquals("application/pdf", jdbc.queryForObject(
+            "select attachment_content_type from core.notes where id = ?",
+            String.class, enhanced.noteId()));
+        assertEquals(1L, count("select count(*) from core.note_attachments"));
+        assertEquals(1L, count("select count(*) from core.note_links"));
+        assertEquals(3L, count("select count(*) from audit.logs"));
+        assertEquals(enhanced.noteId(), creator.create(enhanced, ACTOR, TODAY));
+        assertEquals(1L, count("select count(*) from core.note_attachments"));
+        assertEquals(1L, count("select count(*) from core.note_links"));
+        assertEquals(3L, count("select count(*) from audit.logs"));
+    }
+
+    @Test
+    void replayWithChangedAttachmentOrLinksMustConflict() {
+        var basic = command("142", false);
+        var uploaded = new NoteCreateCommand(basic.operationId(), basic.noteId(),
+            basic.candidate(), basic.notes(),
+            new NoteAttachment("proof.pdf", samplePdf()), List.of(LINK_TARGET));
+        creator.create(uploaded, ACTOR, TODAY);
+        var differentBytes = new NoteCreateCommand(basic.operationId(), basic.noteId(),
+            basic.candidate(), basic.notes(),
+            new NoteAttachment("proof.pdf", "%PDF-1.4\\n%%EOF\\n"
+                .getBytes(java.nio.charset.StandardCharsets.US_ASCII)),
+            List.of(LINK_TARGET));
+        assertThrows(NoteCreateConflict.class,
+            () -> creator.create(differentBytes, ACTOR, TODAY));
+        var missingLink = new NoteCreateCommand(basic.operationId(), basic.noteId(),
+            basic.candidate(), basic.notes(),
+            new NoteAttachment("proof.pdf", samplePdf()), List.of());
+        assertThrows(NoteCreateConflict.class,
+            () -> creator.create(missingLink, ACTOR, TODAY));
+    }
+
+    @Test
+    void invalidAttachmentOrForeignLinkCannotReserveOperation() {
+        var basic = command("143", false);
+        var unsafe = new NoteCreateCommand(basic.operationId(), basic.noteId(),
+            basic.candidate(), basic.notes(),
+            new NoteAttachment("../proof.pdf", samplePdf()), List.of());
+        assertThrows(NoteSaveValidationException.class,
+            () -> creator.create(unsafe, ACTOR, TODAY));
+        var unknownLink = new NoteCreateCommand(basic.operationId(), basic.noteId(),
+            basic.candidate(), basic.notes(), null, List.of(UUID.randomUUID()));
+        assertThrows(NoteCreateConflict.class,
+            () -> creator.create(unknownLink, ACTOR, TODAY));
+        assertEquals(0L, count("select count(*) from core.note_create_operations"));
+        assertEquals(0L, count("select count(*) from core.note_attachments"));
+        assertEquals(0L, count("select count(*) from core.note_links"));
+    }
+
+    @Test
+    void auditFailureRollsBackAttachmentAndLinkAsWellAsNote() {
+        var base = command("999", false);
+        var attached = new NoteCreateCommand(base.operationId(), base.noteId(),
+            base.candidate(), base.notes(),
+            new NoteAttachment("file.pdf", samplePdf()), List.of(LINK_TARGET));
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
+            () -> creator.create(attached, ACTOR, TODAY));
+        assertEquals(0L, count("select count(*) from core.note_attachments"));
+        assertEquals(0L, count("select count(*) from core.note_links"));
+        assertEquals(0L, count("select count(*) from core.note_create_operations"));
+        assertEquals(1L, count("select count(*) from core.notes")); // only seeded EXIT target
     }
 
 }
