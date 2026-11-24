@@ -30,8 +30,11 @@ public class SecurityConfiguration {
                 "/api/master/companies",
                 "/api/master/companies/{id}",
                 "/api/master/factories",
-                "/api/master/production-lines"
+                "/api/master/production-lines",
+                "/api/master/note-types",
+                "/api/master/note-types/{id}/fields"
             ).permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/master/note-types/fields/preview").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/master/companies", "/api/master/factories",
                 "/api/master/production-lines", "/api/master/production-lines/{id}/toggle"
             ).permitAll()
