@@ -85,3 +85,40 @@ create table core.notes (
     production_line_id uuid references core.production_lines(id),
     is_deleted boolean not null default false
 );
+
+-- Note-definition read/impact fixture from the original 002_create_tables.sql.
+create table core.note_types (
+    id uuid primary key,
+    code varchar(50) unique not null,
+    name_ar varchar(100) not null,
+    description text,
+    is_active boolean not null default true,
+    is_deleted boolean not null default false
+);
+create table core.note_fields (
+    id uuid primary key,
+    code varchar(80) unique not null,
+    name_ar varchar(150) not null,
+    description text,
+    default_sort_order int not null default 0,
+    is_active boolean not null default true,
+    is_deleted boolean not null default false
+);
+create table core.note_type_fields (
+    id uuid primary key,
+    note_type_id uuid not null references core.note_types(id),
+    field_id uuid not null references core.note_fields(id),
+    sort_order int not null,
+    is_required boolean not null default true,
+    is_active boolean not null default true,
+    is_deleted boolean not null default false,
+    unique(note_type_id, field_id)
+);
+alter table core.notes add column note_type_id uuid references core.note_types(id);
+create table core.note_field_values (
+    id uuid primary key,
+    note_id uuid not null references core.notes(id) on delete cascade,
+    field_id uuid not null references core.note_fields(id),
+    field_value smallint not null,
+    unique(note_id, field_id)
+);
