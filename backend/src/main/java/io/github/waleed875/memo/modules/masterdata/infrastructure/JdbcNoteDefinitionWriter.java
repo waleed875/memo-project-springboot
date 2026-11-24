@@ -156,11 +156,20 @@ public class JdbcNoteDefinitionWriter implements NoteDefinitionWriter {
     public void deactivate(UUID definitionId, UUID actor) {
         List<UUID> found = jdbc.query("""
             select note_type_id from core.note_type_fields
-            where id = ? and not is_deleted for update
+            where id = ? and not is_deleted
             """, (rs, row) -> rs.getObject(1, UUID.class), definitionId);
         if (found.isEmpty()) throw new MasterDataOperationException("تعريف البند غير موجود.");
         UUID typeId = found.get(0);
+        // All mutating commands lock in this order: type advisory lock, row lock.
+        // This prevents save-vs-deactivate inversion deadlocks.
         typeLock(typeId);
+        List<UUID> locked = jdbc.query("""
+            select note_type_id from core.note_type_fields
+            where id = ? and not is_deleted for update
+            """, (rs, row) -> rs.getObject(1, UUID.class), definitionId);
+        if (locked.isEmpty() || !typeId.equals(locked.get(0))) {
+            throw new MasterDataOperationException("تعريف البند غير موجود.");
+        }
         String before = jdbc.queryForObject("""
             select jsonb_build_object(
                 'isActive', is_active, 'isDeleted', is_deleted)::text
