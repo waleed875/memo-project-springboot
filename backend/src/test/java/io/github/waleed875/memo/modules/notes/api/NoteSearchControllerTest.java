@@ -71,11 +71,9 @@ class NoteSearchControllerTest {
         verifyNoInteractions(reader);
     }
 
-    @Test void requiresReadOnlyGetAndKeepsReviewRoutesClosed() throws Exception {
+    @Test void requiresReadOnlyGetAndKeepsUnportedRoutesClosed() throws Exception {
         when(sessions.resolve(any(HttpServletRequest.class))).thenReturn(Optional.of(
             new UserProfile(UUID.randomUUID(), "admin", "Admin", "ADMIN")));
-        mvc.perform(get("/api/notes/review-queue"))
-            .andExpect(status().isForbidden());
         mvc.perform(get("/api/notes/incomplete-indicators"))
             .andExpect(status().isForbidden());
     }

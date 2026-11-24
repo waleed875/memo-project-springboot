@@ -15,6 +15,8 @@ import io.github.waleed875.memo.modules.notes.application.NoteCreateService;
 import io.github.waleed875.memo.modules.notes.application.NoteCreator;
 import io.github.waleed875.memo.modules.notes.application.NoteSourceStore;
 import io.github.waleed875.memo.modules.notes.application.NoteSourceService;
+import io.github.waleed875.memo.modules.notes.application.NoteReviewQueueReader;
+import io.github.waleed875.memo.modules.notes.application.NoteReviewQueueService;
 import java.time.Clock;
 import java.time.ZoneId;
 import io.github.waleed875.memo.modules.notes.domain.NoteReadPolicy;
@@ -24,6 +26,11 @@ import org.springframework.context.annotation.Configuration;
 /** Compose note read use cases without coupling domain to HTTP or JDBC. */
 @Configuration
 public class NotesWiring {
+    @Bean
+    NoteReviewQueueService noteReviewQueueService(NoteReviewQueueReader reader) {
+        return new NoteReviewQueueService(reader);
+    }
+
     @Bean
     NoteSourceService noteSourceService(
         NoteDetailsReader details, NoteSourceStore source, MasterDataWriteGate gate
