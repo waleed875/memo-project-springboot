@@ -20,6 +20,7 @@ public class SecurityConfiguration {
             .requestMatchers(
                 "/actuator/health", "/actuator/health/**",
                 "/api/auth/csrf", "/api/auth/login", "/api/auth/me", "/api/auth/logout",
+                "/api/auth/change-password",
                 "/api/admin/csrf", "/api/admin/login", "/api/admin/session", "/api/admin/logout"
             ).permitAll()
             .anyRequest().denyAll()

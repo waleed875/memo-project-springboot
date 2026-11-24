@@ -2,6 +2,8 @@ package io.github.waleed875.memo.modules.identity.api;
 
 import io.github.waleed875.memo.modules.identity.application.IdentityApplicationService;
 import io.github.waleed875.memo.modules.identity.application.LoginAttempt;
+import io.github.waleed875.memo.modules.identity.application.PasswordChangeOutcome;
+import io.github.waleed875.memo.platform.security.FixedWindowAttemptLimiter;
 import io.github.waleed875.memo.modules.identity.application.SessionProof;
 import io.github.waleed875.memo.modules.identity.application.UserProfile;
 import jakarta.servlet.http.HttpServletRequest;
@@ -11,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,9 +35,11 @@ public final class LegacyAuthController {
     private static final String SESSION_KEY = "memo.authenticated.session";
 
     private final IdentityApplicationService identity;
+    private final FixedWindowAttemptLimiter limiter;
 
-    public LegacyAuthController(IdentityApplicationService identity) {
+    public LegacyAuthController(IdentityApplicationService identity, FixedWindowAttemptLimiter limiter) {
         this.identity = identity;
+        this.limiter = limiter;
     }
 
     @GetMapping({"/api/auth/csrf", "/api/admin/csrf"})
@@ -65,7 +70,14 @@ public final class LegacyAuthController {
     public ResponseEntity<Map<String, Object>> login(
         @RequestBody LoginRequest credentials, HttpServletRequest request
     ) {
-        boolean admin = request.getRequestURI().startsWith("/api/admin/");
+        FixedWindowAttemptLimiter.Decision decision = limiter.acquire(request.getRemoteAddr());
+        if (!decision.allowed()) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, Long.toString(decision.retryAfterSeconds()))
+                .body(Map.of("message", "محاولات كثيرة. حاول مجددًا لاحقًا."));
+        }
+
+        boolean admin = request.getServletPath().startsWith("/api/admin/");
         LoginAttempt result = identity.login(credentials.username(), credentials.password());
 
         if (result.status() == LoginAttempt.Status.INVALID) {
@@ -104,12 +116,48 @@ public final class LegacyAuthController {
     @PostMapping({"/api/auth/logout", "/api/admin/logout"})
     public ResponseEntity<?> logout(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
-        if (session != null) session.invalidate();
+        if (session != null) {
+            Object stored = session.getAttribute(SESSION_KEY);
+            if (stored instanceof SessionProof proof) identity.logout(proof);
+            session.invalidate();
+        }
 
-        if (request.getRequestURI().startsWith("/api/admin/")) {
+        if (request.getServletPath().startsWith("/api/admin/")) {
             return ResponseEntity.noContent().build();
         }
         return ResponseEntity.ok(Map.of("message", "تم تسجيل الخروج بنجاح."));
+    }
+
+
+    @PostMapping("/api/auth/change-password")
+    public ResponseEntity<Map<String, Object>> changePassword(
+        @RequestBody ChangePasswordRequest body, HttpServletRequest request
+    ) {
+        FixedWindowAttemptLimiter.Decision decision = limiter.acquire(request.getRemoteAddr());
+        if (!decision.allowed()) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, Long.toString(decision.retryAfterSeconds()))
+                .body(Map.of("message", "محاولات كثيرة. حاول مجددًا لاحقًا."));
+        }
+        String username = body.username();
+        if (username == null || username.isBlank()) {
+            username = currentUser(request).map(UserProfile::username).orElse(null);
+        }
+
+        PasswordChangeOutcome result =
+            identity.changePassword(username, body.currentPassword(), body.newPassword());
+
+        if (result == PasswordChangeOutcome.SUCCESS) {
+            HttpSession session = request.getSession(false);
+            if (session != null) session.invalidate();
+            return ResponseEntity.ok(Map.of("success", true, "message", "تم تغيير كلمة المرور بنجاح."));
+        }
+        if (result == PasswordChangeOutcome.INVALID_NEW_PASSWORD) {
+            return ResponseEntity.badRequest()
+                .body(Map.of("message", "كلمة المرور يجب أن تكون من 8 إلى 512 محرفًا."));
+        }
+        return ResponseEntity.badRequest()
+            .body(Map.of("message", "تعذر تغيير كلمة المرور. تحقق من البيانات."));
     }
 
     private Optional<UserProfile> currentUser(HttpServletRequest request) {
@@ -132,4 +180,5 @@ public final class LegacyAuthController {
     }
 
     public record LoginRequest(String username, String password) {}
+    public record ChangePasswordRequest(String username, String currentPassword, String newPassword) {}
 }
