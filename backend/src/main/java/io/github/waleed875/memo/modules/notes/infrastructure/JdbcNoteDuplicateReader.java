@@ -15,7 +15,7 @@ import org.springframework.stereotype.Repository;
  * Does NOT authorize creation or resolve duplicate classifications.
  */
 @Repository
-public final class JdbcNoteDuplicateReader implements NoteDuplicateReader {
+public class JdbcNoteDuplicateReader implements NoteDuplicateReader {
     private final NamedParameterJdbcTemplate jdbc;
 
     public JdbcNoteDuplicateReader(NamedParameterJdbcTemplate jdbc) {
