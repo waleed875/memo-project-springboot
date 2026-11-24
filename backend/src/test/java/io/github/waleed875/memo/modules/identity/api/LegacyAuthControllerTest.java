@@ -84,8 +84,8 @@ class LegacyAuthControllerTest {
             .andExpect(status().isUnauthorized());
     }
 
-    @Test void unfinishedBusinessApisStayForbidden() throws Exception {
-        mvc.perform(get("/api/notes")).andExpect(status().isForbidden());
+    @Test void unfinishedBusinessApisRemainDenied() throws Exception {
+        mvc.perform(get("/api/notes")).andExpect(status().isUnauthorized());
         mvc.perform(post("/api/admin/apply-migrations").with(csrf()))
             .andExpect(status().isForbidden());
     }

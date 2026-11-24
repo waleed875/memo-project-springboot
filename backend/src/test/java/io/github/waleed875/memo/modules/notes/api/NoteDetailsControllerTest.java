@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.github.waleed875.memo.modules.identity.application.UserProfile;
 import io.github.waleed875.memo.modules.notes.application.NoteDetailsReader;
+import io.github.waleed875.memo.modules.notes.application.NoteSearchReader;
 import io.github.waleed875.memo.modules.notes.application.NoteOwnership;
 import io.github.waleed875.memo.platform.security.SessionUserResolver;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,6 +27,7 @@ class NoteDetailsControllerTest {
     @Autowired MockMvc mvc;
     @MockitoBean SessionUserResolver sessions;
     @MockitoBean NoteDetailsReader reader;
+    @MockitoBean NoteSearchReader searchReader;
 
     @Test void anonymousCannotReadDetailsEvenIfNoteExists() throws Exception {
         when(sessions.resolve(any(HttpServletRequest.class))).thenReturn(Optional.empty());
@@ -56,7 +58,7 @@ class NoteDetailsControllerTest {
         when(sessions.resolve(any(HttpServletRequest.class))).thenReturn(Optional.of(
             new UserProfile(UUID.randomUUID(), "viewer", "Viewer", "VIEWER")));
         mvc.perform(get("/api/notes/not-a-guid")).andExpect(status().isNotFound());
-        mvc.perform(get("/api/notes")).andExpect(status().isForbidden());
+        mvc.perform(get("/api/notes/review-queue")).andExpect(status().isForbidden());
         mvc.perform(post("/api/notes").with(csrf())).andExpect(status().isForbidden());
         mvc.perform(post("/api/notes/{id}/start-review", UUID.randomUUID()).with(csrf()))
             .andExpect(status().isForbidden());
