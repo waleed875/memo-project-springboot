@@ -93,7 +93,8 @@ create table core.note_types (
     name_ar varchar(100) not null,
     description text,
     is_active boolean not null default true,
-    is_deleted boolean not null default false
+    is_deleted boolean not null default false,
+    updated_at timestamp not null default now()
 );
 create table core.note_fields (
     id uuid primary key,
@@ -102,7 +103,8 @@ create table core.note_fields (
     description text,
     default_sort_order int not null default 0,
     is_active boolean not null default true,
-    is_deleted boolean not null default false
+    is_deleted boolean not null default false,
+    updated_at timestamp not null default now()
 );
 create table core.note_type_fields (
     id uuid primary key,
@@ -112,6 +114,7 @@ create table core.note_type_fields (
     is_required boolean not null default true,
     is_active boolean not null default true,
     is_deleted boolean not null default false,
+    updated_at timestamp not null default now(),
     unique(note_type_id, field_id)
 );
 alter table core.notes add column note_type_id uuid references core.note_types(id);
