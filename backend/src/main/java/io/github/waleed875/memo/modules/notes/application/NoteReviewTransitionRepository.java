@@ -8,5 +8,5 @@ public interface NoteReviewTransitionRepository {
     void start(UUID noteId, UUID actorId, LocalDateTime expectedUpdatedAt);
     void returnForCorrection(UUID noteId, UUID actorId, String reason, LocalDateTime expectedUpdatedAt);
     void release(UUID noteId, UUID actorId, String reason);
+    void approve(UUID noteId, UUID actorId, LocalDateTime expectedUpdatedAt);
 }
-
