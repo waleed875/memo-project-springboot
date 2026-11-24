@@ -77,7 +77,7 @@ public final class LegacyAuthController {
                 .body(Map.of("message", "محاولات كثيرة. حاول مجددًا لاحقًا."));
         }
 
-        boolean admin = request.getServletPath().startsWith("/api/admin/");
+        boolean admin = request.getRequestURI().startsWith("/api/admin/");
         LoginAttempt result = identity.login(credentials.username(), credentials.password());
 
         if (result.status() == LoginAttempt.Status.INVALID) {
@@ -122,7 +122,7 @@ public final class LegacyAuthController {
             session.invalidate();
         }
 
-        if (request.getServletPath().startsWith("/api/admin/")) {
+        if (request.getRequestURI().startsWith("/api/admin/")) {
             return ResponseEntity.noContent().build();
         }
         return ResponseEntity.ok(Map.of("message", "تم تسجيل الخروج بنجاح."));
