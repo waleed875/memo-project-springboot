@@ -19,6 +19,7 @@ begin
     end if;
     return new;
 end; $
+@@
 create trigger trg_validate_source_exit_reference_test
 before insert or update on core.note_source_exit_refs
 for each row execute function core.validate_source_exit_reference_test()@@
