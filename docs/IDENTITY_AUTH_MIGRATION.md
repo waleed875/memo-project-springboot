@@ -79,3 +79,23 @@
 4. لا تزال إدارة كلمة مرور المستخدمين من الإدارة وتدوير جلسات متعددة والقياس الأمني مطلوبة قبل الإنتاج.
 5. تغيير كلمة المرور الحالي يطابق الحد الأدنى في C# (8) ويضيف حدًا أقصى 512 لضمان عدم تعذر الدخول لاحقًا (اختلاف أمني مقصود).
 6. لم يُنشر هذا الكود على خادم، ولم تُعدّل قاعدة بيانات حقيقية.
+
+
+## PostgreSQL integration verification (Testcontainers)
+
+`backend/src/test/java/io/github/waleed875/memo/modules/identity/infrastructure/IdentityPostgresIT.java`
+
+- Tests start a **real PostgreSQL 16** Docker container and use the production JDBC adapters (not mocks/H2).
+- Fixture SQL under `backend/src/test/resources/postgres-auth-schema.sql` is taken from
+  source migrations **002, 015, 039 and 046** for just `auth.roles`,
+  `auth.users`, `updates.releases`, `updates.audit_log`.
+- Test cases: inactive/deleted accounts and inactive roles, normalized username
+  uniqueness, BCrypt password change and authentication, audit rows, conditional
+  hash updates under stale writes, old session stamp revocation.
+- The suite runs under **Maven Failsafe** during `mvn verify`, which requires Docker.
+  Running `mvn test` or `mvn package` exercises unit tests only.
+- Building the preview Docker image does not launch nested Testcontainers;
+  full integration verification is required in GitHub Actions.
+- **Important limit**: this fixture is a *subset* of the legacy migrations, **not**
+  a verification of every migration 001–070, nor C#-generated BCrypt vectors,
+  nor end-to-end React or multi-node session behavior. Those remain open release gates.

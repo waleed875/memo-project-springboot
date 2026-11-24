@@ -5,7 +5,8 @@ COPY pom.xml .
 RUN mvn -B -ntp dependency:go-offline
 COPY src ./src
 COPY docker/HealthProbe.java /tmp/HealthProbe.java
-RUN mvn -B -ntp test package && \
+# Unit tests run here; Docker-based *IT tests only run in CI's mvn verify.
+RUN mvn -B -ntp package && \
     mkdir -p /tmp/probe && javac -d /tmp/probe /tmp/HealthProbe.java
 
 FROM eclipse-temurin:21-jre-noble

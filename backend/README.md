@@ -46,3 +46,13 @@ ported and CSRF-protected.
 real-schema PostgreSQL integration fixture, security audit is best-effort,
 and BCrypt/React parity has not yet been verified using the original runtime.
 See [identity migration document](../docs/IDENTITY_AUTH_MIGRATION.md).
+
+
+## Verify on PostgreSQL 16 using Docker Testcontainers
+
+`mvn verify` executes JUnit/ArchUnit unit tests and Failsafe `*IT` integration
+tests against an ephemeral PostgreSQL 16 container; Docker must be available.
+`mvn test` and `mvn package` do not start a database container. The preview
+Dockerfile packages the application without running the Docker-backed suite;
+CI `verify` is the required release gate. The fixture contains only legacy
+identity/audit tables, not the full production migration history.

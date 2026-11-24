@@ -24,5 +24,7 @@ jobs:
           java-version: '21'
           cache: maven
           cache-dependency-path: backend/pom.xml
-      - name: Test and package
+      - name: Check Docker engine for Testcontainers
+        run: docker info
+      - name: Unit tests, PostgreSQL integration tests and package
         run: mvn -B -ntp -f backend/pom.xml verify
