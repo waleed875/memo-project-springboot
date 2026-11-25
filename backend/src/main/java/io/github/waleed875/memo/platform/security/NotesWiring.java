@@ -29,6 +29,8 @@ import io.github.waleed875.memo.modules.notes.application.AdminNoteAttachmentUpl
 import io.github.waleed875.memo.modules.notes.application.AdminNoteAttachmentUploadService;
 import io.github.waleed875.memo.modules.notes.application.AdminNoteAttachmentDeleteService;
 import io.github.waleed875.memo.modules.notes.application.AdminNoteAttachmentDeleteRepository;
+import io.github.waleed875.memo.modules.notes.application.AdminNoteAttachmentBatchUploadRepository;
+import io.github.waleed875.memo.modules.notes.application.AdminNoteAttachmentBatchUploadService;
 import java.time.Clock;
 import java.time.ZoneId;
 import io.github.waleed875.memo.modules.notes.domain.NoteReadPolicy;
@@ -38,6 +40,14 @@ import org.springframework.context.annotation.Configuration;
 /** Compose note read use cases without coupling domain to HTTP or JDBC. */
 @Configuration
 public class NotesWiring {
+    @Bean
+    AdminNoteAttachmentBatchUploadService adminNoteAttachmentBatchUploadService(
+        AdminNoteAttachmentBatchUploadRepository repository, MasterDataWriteGate gate
+    ) {
+        return new AdminNoteAttachmentBatchUploadService(repository, gate);
+    }
+
+
     @Bean
     AdminNoteAttachmentDeleteService adminNoteAttachmentDeleteService(
         AdminNoteAttachmentDeleteRepository repository, MasterDataWriteGate gate
