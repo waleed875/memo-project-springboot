@@ -48,6 +48,10 @@ public class SecurityConfiguration {
             // Explicit stable-ID create command; NOT legacy POST /api/notes.
             // CSRF still applies and the application service checks live role.
             .requestMatchers(HttpMethod.POST, "/api/internal/notes").permitAll()
+            // Narrow edit commands. Legacy PUT /api/notes/{id} remains denied.
+            .requestMatchers(HttpMethod.PUT,
+                "/api/internal/notes/{id}/draft",
+                "/api/internal/notes/{id}/admin/text").permitAll()
             .requestMatchers(HttpMethod.DELETE, "/api/notes/{id}").permitAll()
             .requestMatchers(HttpMethod.POST,
                 "/api/notes/{id}/start-review", "/api/notes/{id}/return",
