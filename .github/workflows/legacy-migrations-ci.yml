@@ -64,7 +64,7 @@ jobs:
               exit 1
             fi
             echo "::group::Migration $version: ${scripts[0]##*/}"
-            psql -X -v ON_ERROR_STOP=1 -f "${scripts[0]}"
+            psql -X -v ON_ERROR_STOP=1 -1 -f "${scripts[0]}"
             echo "::endgroup::"
           done
       - name: Test the actual 063 and 070 triggers and link/source parity
