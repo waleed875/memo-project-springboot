@@ -15,6 +15,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
+import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.jdbc.support.JdbcTransactionManager;
 import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
 import org.springframework.transaction.interceptor.TransactionProxyFactoryBean;
@@ -59,8 +60,13 @@ class DashboardCompanyMetricsPostgresIT {
             new ClassPathResource("postgres-masterdata-schema.sql"),
             new ClassPathResource("postgres-notes-detail-schema.sql"),
             new ClassPathResource("postgres-dashboard-summary-schema.sql"),
-            new ClassPathResource("postgres-dashboard-indicator-facts-v3.sql"),
-            new ClassPathResource("postgres-dashboard-company-v4-function.sql")).execute(ds);
+            new ClassPathResource("postgres-dashboard-indicator-facts-v3.sql")).execute(ds);
+        jdbc.execute("alter table core.duplicate_incidents add column company_id uuid references core.companies(id)");
+        var functionScript = new ResourceDatabasePopulator(
+            new ClassPathResource("postgres-dashboard-company-v4-function.sql"));
+        // Keep the PostgreSQL $function$ ... $function$ body intact.
+        functionScript.setSeparator(ScriptUtils.EOF_STATEMENT_SEPARATOR);
+        functionScript.execute(ds);
 
         var proxy=new TransactionProxyFactoryBean();
         proxy.setTarget(new JdbcDashboardCompanyMetricsReader(new NamedParameterJdbcTemplate(ds)));

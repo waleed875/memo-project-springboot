@@ -1,7 +1,5 @@
 -- TEST ONLY. Verbatim canonical v4 filtered function from original SQL migration 069.
 -- Minimal scoped schema is loaded separately; this is NOT a production migration.
-create schema if not exists reporting;
-alter table core.duplicate_incidents add column company_id uuid references core.companies(id);
 create or replace function reporting.fn_company_metrics_snapshot_v4_filtered(
     p_company_id uuid,
     p_from date,
