@@ -7,6 +7,7 @@ import io.github.waleed875.memo.modules.notes.application.NoteDraftEditConflict;
 import io.github.waleed875.memo.modules.notes.application.NoteDraftEditRepository;
 import io.github.waleed875.memo.modules.notes.domain.IndicatorValue;
 import io.github.waleed875.memo.modules.notes.domain.NoteSaveCandidate;
+import io.github.waleed875.memo.modules.notes.domain.NoteAttachmentPolicy;
 import io.github.waleed875.memo.modules.notes.domain.NoteSavePolicy;
 import io.github.waleed875.memo.modules.notes.domain.NoteSaveValidationException;
 import io.github.waleed875.memo.modules.notes.domain.NoteStatus;
@@ -14,6 +15,8 @@ import io.github.waleed875.memo.modules.notes.domain.RequiredNoteField;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.TreeSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -49,6 +52,8 @@ public class JdbcNoteDraftEditRepository implements NoteDraftEditRepository {
     @Transactional
     public EditResult edit(NoteDraftEditCommand command, UUID actor, LocalDate today) {
         requireActiveDataEntry(actor);
+        // Every Spring note/link/source mutation takes this lock before notes FOR UPDATE.
+        NoteLinkWriteLock.acquire(jdbc);
         Existing existing = lock(command.noteId());
         if (!actor.equals(existing.createdBy())) throw new NoteAccessDenied();
         if (!command.expectedUpdatedAt().equals(existing.updatedAt())) {
@@ -61,6 +66,19 @@ public class JdbcNoteDraftEditRepository implements NoteDraftEditRepository {
                 "لا يمكن تعديل المذكرة بعد إرسالها للتدقيق إلا بعد إعادتها للتصحيح.");
         }
 
+        // Verify that the submitted link snapshot still matches the current
+        // persisted set. Source-side trigger updates need not touch notes.updated_at.
+        List<UUID> originalLinks = counterpartIds(command.noteId());
+        if (command.synchronizesLinks()
+            && !new HashSet<>(originalLinks).equals(
+                new HashSet<>(command.expectedRelatedNoteIds()))) {
+            throw new NoteDraftEditConflict(
+                "تغيرت الروابط منذ آخر تحميل؛ أعد تحميل المذكرة قبل حفظها.");
+        }
+        if (command.synchronizesLinks()) {
+            validateRelatedNotes(command.noteId(), existing,
+                command.relatedNoteIds());
+        }
         // Lock against concurrent master-data definition changes with the
         // exact existing key + seed from JdbcNoteDefinitionWriter and JdbcNoteCreator.
         String key = "note-type-fields:" + existing.typeId().toString().replace("-", "");
@@ -149,6 +167,74 @@ public class JdbcNoteDraftEditRepository implements NoteDraftEditRepository {
         }
 
         String afterIndicators = indicatorSnapshot(command.noteId());
+
+        // Save new owner attachment without deleting historical attachments.
+        // All bytes, primary fields and metadata audit belong to this same TX.
+        if (command.attachment() != null) {
+            String mime = NoteAttachmentPolicy.validate(command.attachment());
+            byte[] bytes = command.attachment().bytes();
+            UUID attachmentId = UUID.randomUUID();
+            jdbc.update("""
+                insert into core.note_attachments(
+                    id, note_id, file_name, content_type, file_data,
+                    file_size, created_by)
+                values (?, ?, ?, ?, ?, ?, ?)
+                """, attachmentId, command.noteId(), command.attachment().fileName(),
+                mime, bytes, (long) bytes.length, actor);
+            jdbc.update("""
+                update core.notes
+                set attachment_file_name = ?, attachment_content_type = ?,
+                    attachment_data = ?, updated_by = ?
+                where id = ? and not is_deleted
+                """, command.attachment().fileName(), mime, bytes, actor,
+                command.noteId());
+            jdbc.update("""
+                insert into audit.logs(
+                    user_id, action_type, schema_name, table_name, record_id,
+                    description, new_value)
+                values (?, 'NOTE_ATTACHMENT_UPLOADED', 'core', 'note_attachments',
+                    ?, 'إضافة مرفق ضمن حفظ مسودة المذكرة',
+                    jsonb_build_object('noteId', cast(? as text),
+                      'attachmentId', cast(? as text),
+                      'fileName', ?, 'contentType', ?, 'fileSize', ?))
+                """, actor, attachmentId, command.noteId().toString(),
+                attachmentId.toString(), command.attachment().fileName(), mime,
+                (long) bytes.length);
+        }
+
+        if (command.synchronizesLinks()) {
+            Set<UUID> previous = new HashSet<>(originalLinks);
+            Set<UUID> desired = new HashSet<>(command.relatedNoteIds());
+            for (UUID target : originalLinks) {
+                if (desired.contains(target)) continue;
+                int removed = jdbc.update("""
+                    delete from core.note_links
+                    where (source_note_id = ? and related_note_id = ?)
+                       or (related_note_id = ? and source_note_id = ?)
+                    """, command.noteId(), target, command.noteId(), target);
+                if (removed != 1) {
+                    throw new NoteDraftEditConflict(
+                        "تغيرت روابط المذكرة أثناء حذف الرابط.");
+                }
+                auditLink(command.noteId(), target, actor, "UNLINK_NOTES");
+            }
+            for (UUID target : new TreeSet<>(desired)) {
+                if (previous.contains(target)) continue;
+                int inserted = jdbc.update("""
+                    insert into core.note_links(
+                        source_note_id, related_note_id, created_by)
+                    values (?, ?, ?) on conflict do nothing
+                    """, command.noteId(), target, actor);
+                if (inserted != 1) {
+                    throw new NoteDraftEditConflict(
+                        "تعارض في إضافة رابط مذكرة موجود بالفعل.");
+                }
+                auditLink(command.noteId(), target, actor, "LINK_NOTES");
+            }
+            if (!new HashSet<>(counterpartIds(command.noteId())).equals(desired)) {
+                throw new NoteDraftEditConflict("تعذر مزامنة روابط المذكرة.");
+            }
+        }
         String historyAction = command.saveAsDraft()
             ? "SAVE_DRAFT"
             : existing.status() == NoteStatus.RETURNED_FOR_CORRECTION
@@ -195,6 +281,74 @@ public class JdbcNoteDraftEditRepository implements NoteDraftEditRepository {
             "select updated_at from core.notes where id = ?",
             LocalDateTime.class, command.noteId());
         return new EditResult(command.noteId(), status, newVersion);
+    }
+
+
+    private List<UUID> counterpartIds(UUID noteId) {
+        List<UUID> results = jdbc.query("""
+            select case when source_note_id = ? then related_note_id
+                        else source_note_id end as counterpart
+            from core.note_links
+            where source_note_id = ? or related_note_id = ?
+            order by counterpart
+            """, (rs, row) -> rs.getObject(1, UUID.class),
+            noteId, noteId, noteId);
+        if (new HashSet<>(results).size() != results.size()) {
+            throw new NoteDraftEditConflict("روابط المذكرة الحالية غير متسقة.");
+        }
+        return results;
+    }
+
+    private void validateRelatedNotes(
+        UUID noteId, Existing note, List<UUID> targets
+    ) {
+        if (targets.size() > 100) {
+            throw new NoteSaveValidationException("عدد المذكرات المرتبطة يتجاوز الحد.");
+        }
+        if (targets.isEmpty()) return;
+        List<String> types = jdbc.query("""
+            select code from core.note_types where id = ?
+            """, (rs, i) -> rs.getString(1), note.typeId());
+        if (types.size() != 1 || !List.of("ENTRY", "EXIT").contains(types.getFirst())) {
+            throw new NoteSaveValidationException(
+                "الربط متاح فقط بين مذكرات الإدخال والإخراج.");
+        }
+        String otherType = types.getFirst().equals("ENTRY") ? "EXIT" : "ENTRY";
+        // Lock affected targets in a deterministic order within the shared lock.
+        var all = new TreeSet<UUID>(targets);
+        var params = new MapSqlParameterSource("ids", new ArrayList<>(all));
+        List<UUID> valid = named.query("""
+            select n.id from core.notes n
+              join core.note_types nt on nt.id = n.note_type_id
+            where n.id in (:ids) and not n.is_deleted
+              and n.company_id = :company and nt.code = :type
+              and not (nt.code = 'ENTRY' and n.is_loot)
+            order by n.id for share of n
+            """, params.addValue("company", note.companyId())
+                .addValue("type", otherType),
+            (rs, i) -> rs.getObject(1, UUID.class));
+        if (valid.size() != all.size()) {
+            throw new NoteSaveValidationException(
+                "الروابط يجب أن تكون مع مذكرات غير محذوفة من الشركة نفسها والنوع المقابل.");
+        }
+        Boolean loot = jdbc.queryForObject(
+            "select is_loot from core.notes where id = ?", Boolean.class, noteId);
+        if (Boolean.TRUE.equals(loot)) {
+            throw new NoteSaveValidationException("لا يمكن ربط مذكرة غنائم بمذكرة إخراج.");
+        }
+    }
+
+    private void auditLink(UUID noteId, UUID target, UUID actor, String action) {
+        jdbc.update("""
+            insert into audit.logs(
+                user_id, action_type, schema_name, table_name, record_id,
+                description, new_value)
+            values (?, ?, 'core', 'note_links', ?,
+                'مزامنة روابط المذكرة ضمن إعادة الحفظ',
+                jsonb_build_object('noteId', cast(? as text),
+                                   'relatedNoteId', cast(? as text),
+                                   'operation', ?))
+            """, actor, action, noteId, noteId.toString(), target.toString(), action);
     }
 
     private void requireActiveDataEntry(UUID actor) {
