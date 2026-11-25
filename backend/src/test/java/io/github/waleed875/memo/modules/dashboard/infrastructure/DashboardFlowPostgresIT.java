@@ -121,11 +121,20 @@ class DashboardFlowPostgresIT {
         assertEquals(0L,october.dataCompleteness().get(1).value());
     }
 
-    @Test void entryCutoffUsesCreationTimestampRatherThanArrival() {
+    @Test void entryCutoffUsesArrivalDateAfterOriginalBuildSnapshotSql() {
         var filtered=reader.read(admin,filters("ArrivalDate",null,null,
             LocalDate.of(2026,10,31)));
-        assertEquals(1L,filtered.incomingVsApproved().getFirst().incoming());
+        assertTrue(filtered.incomingVsApproved().isEmpty());
         assertEquals(0L,filtered.dataCompleteness().get(0).value());
+    }
+
+    @Test void writingBasisScopesIncomingButArrivalStillGroupsItsMonth() {
+        var result=reader.read(admin,filters("WritingDate",
+            LocalDate.of(2026,11,1),LocalDate.of(2026,11,30),null));
+        assertEquals(1,result.incomingVsApproved().size());
+        assertEquals("2026-11",result.incomingVsApproved().getFirst().periodKey());
+        assertEquals(1L,result.incomingVsApproved().getFirst().incoming());
+        assertEquals(2L,result.incomingVsApproved().getFirst().approved());
     }
 
     @Test void emptyWindowProducesZeroCompletenessAndNoEventMonths() {

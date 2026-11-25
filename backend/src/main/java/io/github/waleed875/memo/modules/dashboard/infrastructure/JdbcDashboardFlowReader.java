@@ -20,9 +20,9 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Two independent period axes are intentional: incoming uses arrival_at,
- * approved uses approved_at. Data completeness is a separate scoped-notes
- * aggregate. Matches original C# DashboardQueryService SnapshotSql.
+ * Original C# BuildSnapshotSql replaces incoming date *filter* by dateBasis,
+ * but incoming month labels still use arrival_at. Approved months and filters
+ * use approved_at. Entry cutoff is arrival-date based after C# substitution.
  */
 @Repository
 public class JdbcDashboardFlowReader implements DashboardFlowReader {
@@ -42,15 +42,17 @@ public class JdbcDashboardFlowReader implements DashboardFlowReader {
             """,new MapSqlParameterSource("actor",actorId),Boolean.class);
         if(!Boolean.TRUE.equals(admin)) throw new MasterDataForbiddenException();
 
-        // Original C# BuildSnapshotSql applies dateBasis to generic note
-        // aggregations; incoming and approved series each use event timestamps.
+        // C# SQL applies dateBasis to incoming WHERE, but retains arrival month
+        // grouping; the approved event filter remains on approved_at.
+        String basis="ArrivalDate".equals(f.dateBasis())
+            ?"n.arrival_at::date":"n.writing_date::date";
         String common="""
               and (cast(:companyId as uuid) is null or n.company_id=:companyId)
               and (cast(:factoryId as uuid) is null or n.factory_id=:factoryId)
               and (cast(:lineId as uuid) is null or n.production_line_id=:lineId)
               and (cast(:typeId as uuid) is null or n.note_type_id=:typeId)
               and (cast(:status as text) is null or n.status=:status)
-              and (cast(:cutoff as date) is null or n.created_at::date <= cast(:cutoff as date))
+              and (cast(:cutoff as date) is null or n.arrival_at::date <= cast(:cutoff as date))
             """;
         var params=new MapSqlParameterSource()
             .addValue("fromDate",f.from(),Types.DATE)
@@ -68,9 +70,9 @@ public class JdbcDashboardFlowReader implements DashboardFlowReader {
                      count(*) as incoming
               from core.notes n
               where not n.is_deleted and n.arrival_at is not null
-                and (cast(:fromDate as date) is null or n.arrival_at::date >= cast(:fromDate as date))
-                and (cast(:toDate as date) is null or n.arrival_at::date <= cast(:toDate as date))
-            """+common+"""
+                and (cast(:fromDate as date) is null or %s >= cast(:fromDate as date))
+                and (cast(:toDate as date) is null or %s <= cast(:toDate as date))
+            """.formatted(basis,basis)+common+"""
               group by 1
             ), approved as (
               select date_trunc('month',n.approved_at)::date as month_start,
@@ -102,8 +104,6 @@ public class JdbcDashboardFlowReader implements DashboardFlowReader {
                 item.month().toString(),label,label,item.incoming(),item.approved()));
         }
 
-        String basis="ArrivalDate".equals(f.dateBasis())
-            ?"n.arrival_at::date":"n.writing_date::date";
         var completeness=jdbc.queryForObject("""
             select count(*) filter(where n.writing_date is null) as missing_writing,
                    count(*) filter(where n.factory_id is null) as missing_factory,
