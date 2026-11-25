@@ -49,7 +49,7 @@ class DashboardSnapshotWireParityTest {
         when(sessions.resolve(any(HttpServletRequest.class))).thenReturn(
             Optional.of(new UserProfile(ACTOR,"admin","Admin","ADMIN")));
         var scenarios=new LinkedHashMap<String,DashboardUnifiedSnapshot>();
-        scenarios.put("scoped",DashboardUnifiedFixture.build(DashboardUnifiedFixture.companyUuid()));
+        scenarios.put("scoped",DashboardUnifiedFixture.build(UUID.fromString("e1000000-0000-4000-8000-000000000001")));
         scenarios.put("global",DashboardUnifiedFixture.build(null));
         scenarios.put("empty",emptySnapshot());
         scenarios.put("metrics",withMetrics());
@@ -135,7 +135,7 @@ class DashboardSnapshotWireParityTest {
     }
 
     private static DashboardUnifiedSnapshot withMetrics() throws Exception {
-        var original=DashboardUnifiedFixture.build(DashboardUnifiedFixture.companyUuid());
+        var original=DashboardUnifiedFixture.build(UUID.fromString("e1000000-0000-4000-8000-000000000001"));
         var filters=original.effectiveFilters();
         var prev=new DashboardCompanyPeriod(
             LocalDate.of(2026,10,2),LocalDate.of(2026,10,31),"ArrivalDate",null);
