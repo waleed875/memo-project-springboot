@@ -39,6 +39,9 @@ public class SecurityConfiguration {
             .requestMatchers(HttpMethod.GET,
                 "/api/notes/incomplete-indicators", "/api/notes/link-candidates"
             ).denyAll()
+            // Dashboard lookups only: controller/service require an active ADMIN session,
+            // and JDBC re-checks the current DB role. All other dashboard paths stay denied.
+            .requestMatchers(HttpMethod.GET, "/api/dashboard/lookups").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/notes/review-queue").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/notes/{id}/source").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/notes/{id}/source").permitAll()
