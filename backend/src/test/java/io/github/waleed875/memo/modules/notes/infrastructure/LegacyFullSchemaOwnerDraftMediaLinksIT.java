@@ -140,7 +140,7 @@ class LegacyFullSchemaOwnerDraftMediaLinksIT {
         assertEquals(1, count("core.note_attachments", "note_id", id));
         assertEquals(1, links(id));
         assertEquals(1, sourceRefs(id));
-        assertEquals(1, count("core.note_field_values", "note_id", id));
+        assertEquals(requiredCorrect().size(), count("core.note_field_values", "note_id", id));
         assertEquals(1, jdbc.queryForObject("""
             select count(*) from audit.logs
             where record_id=? and action_type='LINK_NOTES'
