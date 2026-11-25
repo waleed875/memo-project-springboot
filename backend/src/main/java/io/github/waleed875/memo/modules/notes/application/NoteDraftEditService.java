@@ -46,6 +46,30 @@ public final class NoteDraftEditService {
             throw new NoteSaveValidationException(
                 "معرّف المذكرة ونسخة التعديل والمؤشرات مطلوبة.");
         }
+        if ((command.expectedRelatedNoteIds() == null) != (command.relatedNoteIds() == null)) {
+            throw new NoteSaveValidationException(
+                "تحديث الروابط يتطلب القائمة السابقة والقائمة المطلوبة صراحةً.");
+        }
+        if (command.synchronizesLinks()) {
+            validateLinks(command.noteId(), command.expectedRelatedNoteIds());
+            validateLinks(command.noteId(), command.relatedNoteIds());
+        }
+        io.github.waleed875.memo.modules.notes.domain.NoteAttachmentPolicy.validate(
+            command.attachment());
         return repository.edit(command, actor.id(), LocalDate.now(clock));
     }
+    private static void validateLinks(UUID noteId, java.util.List<UUID> ids) {
+        if (ids.size() > 100) {
+            throw new NoteSaveValidationException("تجاوز عدد المذكرات المرتبطة الحد.");
+        }
+        var seen = new java.util.HashSet<UUID>();
+        for (UUID id : ids) {
+            if (id == null || ZERO.equals(id) || id.equals(noteId)
+                || !seen.add(id)) {
+                throw new NoteSaveValidationException(
+                    "روابط المذكرات تحتوي على معرف فارغ أو ذاتي أو مكرر.");
+            }
+        }
+    }
+
 }
