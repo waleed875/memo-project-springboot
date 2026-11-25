@@ -46,6 +46,17 @@ import org.springframework.context.annotation.Configuration;
 /** Compose note read use cases without coupling domain to HTTP or JDBC. */
 @Configuration
 public class NotesWiring {
+    @Bean
+    io.github.waleed875.memo.modules.notes.application.AdminApprovedMetadataEditService
+        adminApprovedMetadataEditService(
+            io.github.waleed875.memo.modules.notes.application.AdminApprovedMetadataEditRepository repository,
+            MasterDataWriteGate gate
+        ) {
+        return new io.github.waleed875.memo.modules.notes.application.AdminApprovedMetadataEditService(
+            repository, gate, Clock.system(ZoneId.of("Asia/Damascus")));
+    }
+
+
     /**
      * Application services receive this decorated port, not the raw JDBC port.
      * Each attempt runs a new top-level PostgreSQL transaction.
