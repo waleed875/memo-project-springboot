@@ -27,6 +27,8 @@ import io.github.waleed875.memo.modules.notes.application.AdminNoteIndicatorEdit
 import io.github.waleed875.memo.modules.notes.application.AdminNoteIndicatorEditService;
 import io.github.waleed875.memo.modules.notes.application.AdminNoteAttachmentUploadRepository;
 import io.github.waleed875.memo.modules.notes.application.AdminNoteAttachmentUploadService;
+import io.github.waleed875.memo.modules.notes.application.AdminNoteAttachmentDeleteService;
+import io.github.waleed875.memo.modules.notes.application.AdminNoteAttachmentDeleteRepository;
 import java.time.Clock;
 import java.time.ZoneId;
 import io.github.waleed875.memo.modules.notes.domain.NoteReadPolicy;
@@ -36,6 +38,14 @@ import org.springframework.context.annotation.Configuration;
 /** Compose note read use cases without coupling domain to HTTP or JDBC. */
 @Configuration
 public class NotesWiring {
+    @Bean
+    AdminNoteAttachmentDeleteService adminNoteAttachmentDeleteService(
+        AdminNoteAttachmentDeleteRepository repository, MasterDataWriteGate gate
+    ) {
+        return new AdminNoteAttachmentDeleteService(repository, gate);
+    }
+
+
     @Bean
     AdminNoteAttachmentUploadService adminNoteAttachmentUploadService(
         AdminNoteAttachmentUploadRepository repository, MasterDataWriteGate gate
