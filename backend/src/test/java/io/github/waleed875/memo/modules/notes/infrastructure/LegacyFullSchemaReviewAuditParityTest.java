@@ -271,11 +271,20 @@ class LegacyFullSchemaReviewAuditParityTest {
         UUID id = note("COMPLETE", (short) 1);
         assertThrows(Exception.class, () ->
             service.start(actor(creator, "DATA_ENTRY"), id, version(id)));
-        assertThrows(NoteReviewConflict.class, () ->
+        // A caller cannot claim a reviewer role that is not held in auth.users.
+        assertThrows(io.github.waleed875.memo.modules.masterdata.application.MasterDataForbiddenException.class, () ->
             service.start(actor(creator, "REVIEWER"), id, version(id)));
         assertThrows(NoteReviewConflict.class, () ->
             service.start(actor(reviewer, "REVIEWER"), id,
                 LocalDateTime.parse("2020-01-01T00:00:00")));
+        // A real reviewer who authored the note must also be rejected.
+        UUID own = note("COMPLETE", (short) 1);
+        jdbc.update("update core.notes set created_by = ? where id = ?", reviewer, own);
+        assertThrows(NoteReviewConflict.class, () ->
+            service.start(actor(reviewer, "REVIEWER"), own, version(own)));
+        assertEquals("COMPLETE", status(own));
+        assertEquals(0, history(own));
+        assertEquals(0, audits(own));
         assertEquals("COMPLETE", status(id));
         assertEquals(0, history(id));
         assertEquals(0, audits(id));
