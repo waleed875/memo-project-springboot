@@ -1,0 +1,14 @@
+# Run together with compose.preview.yaml; for development only.
+# docker compose --env-file deploy/.env.preview -f deploy/compose.preview.yaml -f deploy/compose.frontend-preview.yaml up --build -d
+services:
+  memo-frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8081:80"
+    depends_on:
+      - memo-api
+    networks:
+      - memo_internal
+    restart: unless-stopped
