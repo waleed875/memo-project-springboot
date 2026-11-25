@@ -10,6 +10,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Types;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -117,6 +118,7 @@ public class JdbcDashboardSummaryReader implements DashboardSummaryReader {
                         and arrival_at::date - writing_date::date > 5)
                       ::double precision as max_late_days,
                   max(arrival_at)::date as latest_arrival_date,
+                  max(arrival_at) as latest_arrival_timestamp,
                   count(*) filter (where writing_date is not null
                       and arrival_at >= writing_date) as eligible_notes,
                   count(*) filter (where writing_date is not null
@@ -171,7 +173,8 @@ public class JdbcDashboardSummaryReader implements DashboardSummaryReader {
                 rs.getLong("late_cross_month"), rs.getLong("on_time"),
                 nullableDouble(rs.getObject("avg_late_days")),
                 nullableDouble(rs.getObject("max_late_days")),
-                rs.getObject("latest_arrival_date", LocalDate.class));
+                rs.getObject("latest_arrival_date", LocalDate.class),
+                rs.getObject("latest_arrival_timestamp", LocalDateTime.class));
             long eligible = rs.getLong("eligible_notes");
             long onTime = rs.getLong("on_time_notes");
             var sla = new DashboardCoreSla(eligible, onTime, rs.getLong("late_notes"),

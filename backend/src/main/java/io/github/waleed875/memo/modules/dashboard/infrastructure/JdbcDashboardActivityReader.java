@@ -8,6 +8,7 @@ import io.github.waleed875.memo.modules.dashboard.application.DashboardSummaryCr
 import io.github.waleed875.memo.modules.masterdata.application.MasterDataForbiddenException;
 import java.sql.Types;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -136,7 +137,9 @@ public class JdbcDashboardActivityReader implements DashboardActivityReader {
             limit 10
             """, params, (rs, index) -> {
                 LocalDate writing = rs.getObject("writing_date", LocalDate.class);
-                LocalDate arrival = rs.getObject("arrival_at", LocalDate.class);
+                LocalDateTime arrivalTime =
+                    rs.getObject("arrival_at", LocalDateTime.class);
+                LocalDate arrival = arrivalTime == null ? null : arrivalTime.toLocalDate();
                 String status = rs.getString("status");
                 return new DashboardActivitySnapshot.RecentNoteItem(
                     rs.getObject("id", UUID.class),rs.getString("note_number"),
@@ -144,7 +147,8 @@ public class JdbcDashboardActivityReader implements DashboardActivityReader {
                     rs.getString("production_line_name"),rs.getString("note_type_name"),
                     status, DashboardDistributionLabels.status(status),writing,arrival,
                     writing != null && arrival != null
-                        && ChronoUnit.DAYS.between(writing, arrival) > 5);
+                        && ChronoUnit.DAYS.between(writing, arrival) > 5,
+                    arrivalTime);
             });
 
         var ageRows = jdbc.query(scoped + """
