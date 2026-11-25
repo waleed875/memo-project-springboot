@@ -8,6 +8,16 @@ import org.springframework.context.annotation.Configuration;
 /** HTTP, application logic and JDBC stay independently testable. */
 @Configuration
 public class DashboardWiring {
+    // The original server evaluates 'today' in the Damascus business time zone.
+    @Bean
+    io.github.waleed875.memo.modules.dashboard.application.DashboardSummaryService
+        dashboardSummaryService(
+            io.github.waleed875.memo.modules.dashboard.application.DashboardSummaryReader reader
+        ) {
+        return new io.github.waleed875.memo.modules.dashboard.application.DashboardSummaryService(
+            reader, java.time.Clock.system(java.time.ZoneId.of("Asia/Damascus")));
+    }
+
     @Bean DashboardLookupsService dashboardLookupsService(DashboardLookupsReader reader) {
         return new DashboardLookupsService(reader);
     }
