@@ -10,7 +10,7 @@ if (!Directory.Exists(args[0])) throw new DirectoryNotFoundException(args[0]);
 Directory.CreateDirectory(args[1]);
 var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 var files = Directory.GetFiles(args[0], "*.json");
-if (files.Length != 3) throw new InvalidDataException($"Expected 3 pinned scenarios, got {files.Length}");
+if (files.Length != 4) throw new InvalidDataException($"Expected 4 pinned scenarios, got {files.Length}");
 foreach (var path in files.OrderBy(x => x, StringComparer.Ordinal)) {
     var snapshot=JsonSerializer.Deserialize<DashboardSnapshot>(
         await File.ReadAllTextAsync(path),options)

@@ -1,0 +1,61 @@
+name: Dashboard C# JSON wire parity
+on:
+  push:
+    paths:
+      - 'backend/**'
+      - 'tools/dashboard-wire-oracle/**'
+      - '.github/workflows/dashboard-wire-parity-ci.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'tools/dashboard-wire-oracle/**'
+      - '.github/workflows/dashboard-wire-parity-ci.yml'
+permissions:
+  contents: read
+jobs:
+  dashboard-wire-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout independent Spring Boot implementation
+        uses: actions/checkout@v4
+      - name: Checkout pinned C# dashboard DTOs and view builder read only
+        uses: actions/checkout@v4
+        with:
+          repository: waleed875/memo_project
+          ref: dd8eb2ba57864eac2371a3addd0b786ccefa2367
+          path: legacy-reference
+          persist-credentials: false
+          sparse-checkout: |
+            Memo_Project_Handover_v2.0.2/02_الكود_المصدري_Source_Code/source/src/MemoDashboard.Web/Backend/Models/DashboardDtos.cs
+            Memo_Project_Handover_v2.0.2/02_الكود_المصدري_Source_Code/source/src/MemoDashboard.Web/Backend/Models/DashboardContractDtos.cs
+            Memo_Project_Handover_v2.0.2/02_الكود_المصدري_Source_Code/source/src/MemoDashboard.Web/Backend/Models/CompanyMetrics.cs
+            Memo_Project_Handover_v2.0.2/02_الكود_المصدري_Source_Code/source/src/MemoDashboard.Web/Backend/Services/DashboardContractBuilder.cs
+          sparse-checkout-cone-mode: false
+      - name: Install Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - name: Serialize four distinct Java HTTP dashboard snapshots
+        env:
+          MEMO_DASHBOARD_EXPORT_DIR: ${{ runner.temp }}/java-dashboard-snapshots
+        run: |
+          mvn -B -ntp -f backend/pom.xml -Dtest=DashboardSnapshotWireParityTest test
+      - name: Install .NET SDK 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - name: Deserialize with original C# DTOs and rebuild original C# views
+        run: |
+          dotnet run --configuration Release --project tools/dashboard-wire-oracle/DashboardWireOracle.csproj -- \
+            "${{ runner.temp }}/java-dashboard-snapshots" \
+            "${{ runner.temp }}/csharp-dashboard-snapshots"
+      - name: Diff every nested JSON value of Java HTTP and original C# serialization
+        env:
+          MEMO_DASHBOARD_EXPORT_DIR: ${{ runner.temp }}/java-dashboard-snapshots
+          MEMO_DASHBOARD_CSHARP_ORACLE_DIR: ${{ runner.temp }}/csharp-dashboard-snapshots
+        run: |
+          mvn -B -ntp -f backend/pom.xml -Dtest=DashboardSnapshotWireParityTest test
