@@ -58,6 +58,8 @@ class DashboardOriginalQueryDatabaseParityTest {
         var distributionReader=new JdbcDashboardDistributionsReader(jdbc);
         var activityReader=new JdbcDashboardActivityReader(jdbc);
         var flowReader=new JdbcDashboardFlowReader(jdbc);
+        var qualityReader=new JdbcDashboardQualityReader(jdbc);
+        var performanceReader=new JdbcDashboardPerformanceReader(jdbc);
         for(var c:CASES) {
             DashboardSummaryCriteria f=new DashboardSummaryCriteria(
                 LocalDate.parse(c.from()),LocalDate.parse(c.to()),c.basis(),
@@ -72,6 +74,8 @@ class DashboardOriginalQueryDatabaseParityTest {
             var d=distributionReader.read(actor,f);
             var a=activityReader.read(actor,f,anchor);
             var flow=flowReader.read(actor,f);
+            var quality=qualityReader.read(actor,f,1);
+            var performance=performanceReader.read(actor,f);
             String root="$."+c.name();
             compareSubset(mapper,expected.path("summary"),core.summary(),root+".summary",
                 Set.of("latestArrivalDate"));
@@ -94,6 +98,21 @@ class DashboardOriginalQueryDatabaseParityTest {
                 root+".dataCompleteness",Set.of());
             compareArray(mapper,expected.path("recentNotes"),a.recentNotes(),
                 root+".recentNotes",Set.of("writingDate","arrivalAt"));
+            compareSubset(mapper,expected.path("fieldQuality"),quality.fieldQuality(),
+                root+".fieldQuality",Set.of());
+            compareArray(mapper,expected.path("qualityByCompany"),quality.qualityByCompany(),
+                root+".qualityByCompany",Set.of());
+            compareArray(mapper,expected.path("indicatorStateDistribution"),
+                quality.indicatorStateDistribution(),root+".indicatorStateDistribution",
+                Set.of());
+            compareArray(mapper,expected.path("topErrorFields"),quality.topErrorFields(),
+                root+".topErrorFields",Set.of());
+            compareArray(mapper,expected.path("timelinessByCompany"),
+                performance.timelinessByCompany(),root+".timelinessByCompany",Set.of());
+            compareArray(mapper,expected.path("performanceByFactory"),
+                performance.performanceByFactory(),root+".performanceByFactory",Set.of());
+            compareArray(mapper,expected.path("performanceByLine"),
+                performance.performanceByLine(),root+".performanceByLine",Set.of());
         }
     }
 
@@ -113,6 +132,10 @@ class DashboardOriginalQueryDatabaseParityTest {
 
     private static void compareObjects(JsonNode expected,JsonNode actual,String path,
                                        Set<String> ignore) {
+        if(expected.isNull()||actual.isNull()) {
+            assertEquals(expected,actual,"null mismatch "+path);
+            return;
+        }
         assertTrue(expected.isObject()&&actual.isObject(),"not objects: "+path);
         actual.propertyNames().forEach(name->{
             if(ignore.contains(name))return;
