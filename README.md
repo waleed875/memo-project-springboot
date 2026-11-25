@@ -1,33 +1,29 @@
-# Memo Project — Spring Boot + React
+# Standalone Spring Boot + React project
 
-This repository combines the evolving Spring Boot backend with the complete original React/TypeScript/Vite frontend in one clone. Spring sources include the cumulative work of the stacked migration branches through phase 58; the frontend source is pinned to original commit `dd8eb2ba57864eac2371a3addd0b786ccefa2367`.
+This repository includes the full React/Vite frontend, 16 frontend regression test suites, the cumulative Spring Boot migration code (through phase 58), and a pinned local copy of the 70 original SQL migrations from `waleed875/memo_project@dd8eb2ba57864eac2371a3addd0b786ccefa2367`.
 
-## Layout
+## Development
 
-- `backend/`: Java 21 / Spring Boot modular-monolith backend, including notes, identity and dashboard migration work and tests.
-- `frontend/`: original React 18 / Vite 5 frontend; build to `frontend/dist`.
-- `deploy/`: isolated PostgreSQL/Spring Boot preview and optional UI preview (Docker Compose).
-- `docs/` and `.github/workflows/`: migration decisions, compatibility gates and verification.
-
-## Develop locally
-
-```sh
+```bash
 cd backend && mvn verify
 cd ../frontend && npm ci && npm run build && npm test
 ```
 
-Start Spring Boot with an isolated migrated PostgreSQL test database, then run `cd frontend && npm run dev`. The Vite server proxies `/api` requests to localhost:8080.
+## Fresh Docker preview (nonproduction only)
 
-## Docker preview
+From the repository root, create `deploy/.env.preview` containing a *disposable* `POSTGRES_PASSWORD=...` value, then:
 
-Set a non-production password in `deploy/.env.preview` as `POSTGRES_PASSWORD=...`, then run from repository root:
-
-```sh
+```bash
 docker compose --env-file deploy/.env.preview -f deploy/compose.preview.yaml -f deploy/compose.frontend-preview.yaml up --build -d
 ```
 
-Frontend: http://127.0.0.1:8081 | API health: http://127.0.0.1:8080/actuator/health
+The original migrations `001` through `070` are executed inside **a single SQL transaction**, only by the standard PostgreSQL image's initialization hook on a new empty database volume. This is intentionally NOT a general-purpose migration runner and will not modify an existing database volume. Check `docker compose ... logs postgres` for initialization errors. Existing volumes are never reset automatically. **Never run `down -v` on data you need to retain.**
 
-**Important:** This is not production-ready or functionally equivalent to the old application yet. Legacy public API routes are still blocked by design, database migrations are not automatically applied, and the original setup/login/UI flows have not been validated end-to-end against Spring. Do not migrate users or production traffic yet. GitHub remains the source of truth; Gitea and Portainer deployment are deferred.
+- UI: http://127.0.0.1:8081
+- API health: http://127.0.0.1:8080/actuator/health
+- PostgreSQL port is not published.
+- Spring Boot and PostgreSQL are restricted to a private Docker bridge network; host HTTP ports bind loopback.
 
-The original `waleed875/memo_project` repository is read-only and has not been changed.
+This is a **source-complete preview**, not a production-ready functional replacement. The original `/api/setup/*` UI bootstrap flow and several legacy dashboard and notes APIs are still intentionally denied. The original SQL creates an admin account with a placeholder password hash, so a fresh preview has **no usable administrator login**; do not weaken authentication or seed shared credentials. Setting up a safe initial account provisioning mechanism remains required. Only approved test identities may be used in disposable integration tests. Gitea and Portainer production deployment remain deferred.
+
+See `database/migrations/` for the exact pinned SQL files; CI no longer needs the original repository to replay migrations in the dedicated preview database job. The original repository is unchanged.
