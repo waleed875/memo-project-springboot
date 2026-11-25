@@ -11,7 +11,7 @@ public final class DashboardUnifiedFixture {
     private DashboardUnifiedFixture() {}
 
     public static DashboardUnifiedSnapshot build(UUID companyId) {
-        UUID id=companyId==null?UUID.randomUUID():companyId;
+        UUID id=companyId==null?UUID.fromString("e1000000-0000-4000-8000-000000000001"):companyId;
         LocalDate d=LocalDate.of(2026,11,25);
         var filters=new DashboardSummaryCriteria(
             LocalDate.of(2026,11,1),LocalDate.of(2026,11,30),
@@ -30,7 +30,7 @@ public final class DashboardUnifiedFixture {
                 id,"شركة","شركة",3,1,1,2,0,50.0,50.0,4,3,1,0,75.0)),
             List.of(),List.of(),
             List.of(new DashboardQualitySnapshot.TopErrorField(
-                UUID.randomUUID(),"حقل","حقل",4,1,25.0)),
+                UUID.fromString("e1000000-0000-4000-8000-000000000003"),"حقل","حقل",4,1,25.0)),
             List.of(new DashboardQualitySnapshot.IndicatorState(1,"صحيح",3)),
             filters,10);
         var performance=new DashboardPerformanceBreakdown(
@@ -43,7 +43,7 @@ public final class DashboardUnifiedFixture {
             List.of(new DashboardActivitySnapshot.DuplicateBreakdownItem(
                 "COMPANY_RESEND","إعادة إرسال من الشركة",1)),
             List.of(new DashboardActivitySnapshot.RecentNoteItem(
-                UUID.randomUUID(),"N-1","شركة",null,null,"نوع","APPROVED",
+                UUID.fromString("e1000000-0000-4000-8000-000000000002"),"N-1","شركة",null,null,"نوع","APPROVED",
                 "معتمدة",LocalDate.of(2026,11,19),d,true)),
             List.of(new DashboardActivitySnapshot.BacklogAgeItem(
                 "1-3-days","1-3 أيام",1)),filters);
