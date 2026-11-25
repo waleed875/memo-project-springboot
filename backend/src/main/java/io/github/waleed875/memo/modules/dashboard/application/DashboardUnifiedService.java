@@ -32,9 +32,11 @@ public class DashboardUnifiedService {
     private final DashboardCompanyMetricsService periods;
     private final Clock clock;
     private static final List<String> GAPS = List.of(
-        "topErrorFields: legacy field totals and accuracy columns are not migrated",
-        "views: component item types have not passed exact JSON DTO parity",
-        "snapshot: complete historical migration and React browser E2E not verified"
+        "snapshot: preview covers JSON field names, not a verified historical-data parity run",
+        "quality: five C# TopErrorField defaults are serialized as 0/0/0/0/null, not measured totals",
+        "time: C# DateTime kind and business timezone conversions need cross-runtime golden checks",
+        "filters: internal minSample and range bounds add migration safety limits",
+        "release: React browser E2E and original public snapshot route are not yet enabled"
     );
 
     public DashboardUnifiedService(
