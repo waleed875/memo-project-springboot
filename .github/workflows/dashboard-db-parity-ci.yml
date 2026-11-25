@@ -1,0 +1,97 @@
+name: Dashboard DB C# vs Java parity
+on:
+  push:
+    paths:
+      - '.github/workflows/dashboard-db-parity-ci.yml'
+      - 'backend/**'
+      - 'tools/dashboard-db-oracle/**'
+  pull_request:
+    paths:
+      - '.github/workflows/dashboard-db-parity-ci.yml'
+      - 'backend/**'
+      - 'tools/dashboard-db-oracle/**'
+permissions:
+  contents: read
+jobs:
+  dashboard-database-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-bookworm
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test_only_password
+          POSTGRES_DB: memo_dashboard_parity
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d memo_dashboard_parity"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: test_only_password
+      PGDATABASE: memo_dashboard_parity
+      MEMO_DASHBOARD_PARITY_DB: Host=127.0.0.1;Port=5432;Username=postgres;Password=test_only_password;Database=memo_dashboard_parity
+      MEMO_DASHBOARD_DB_JDBC_URL: jdbc:postgresql://127.0.0.1:5432/memo_dashboard_parity
+      MEMO_DASHBOARD_DB_USER: postgres
+      MEMO_DASHBOARD_DB_PASSWORD: test_only_password
+    steps:
+      - name: Checkout independent Spring Boot project
+        uses: actions/checkout@v4
+      - name: Checkout pinned original 001–070 SQL migrations and DTO read-only
+        uses: actions/checkout@v4
+        with:
+          repository: waleed875/memo_project
+          ref: dd8eb2ba57864eac2371a3addd0b786ccefa2367
+          path: legacy-reference
+          persist-credentials: false
+          sparse-checkout: |
+            Memo_Project_Handover_v2.0.2/02_الكود_المصدري_Source_Code/source/database
+            Memo_Project_Handover_v2.0.2/02_الكود_المصدري_Source_Code/source/src/MemoDashboard.Web/Backend/Models/CompanyMetrics.cs
+          sparse-checkout-cone-mode: false
+      - name: Install PostgreSQL 16 client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+      - name: Replay all 70 original schema migrations on disposable DB
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          scripts_dir="legacy-reference/Memo_Project_Handover_v2.0.2/02_الكود_المصدري_Source_Code/source/database"
+          for n in $(seq 1 70); do
+            version=$(printf '%03d' "$n")
+            scripts=( "$scripts_dir"/"$version"_*.sql )
+            if (( ${#scripts[@]} != 1 )); then
+              echo "::error::Missing or duplicate original migration $version"
+              exit 1
+            fi
+            psql -X -v ON_ERROR_STOP=1 -1 -f "${scripts[0]}" >/dev/null
+          done
+      - name: Seed a fixed and isolated dashboard dataset
+        run: psql -X -v ON_ERROR_STOP=1 -f backend/src/test/resources/dashboard-db-parity-seed.sql
+      - name: Install .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - name: Execute original C# CompanyMetrics over shared PostgreSQL
+        run: |
+          dotnet run --configuration Release --project tools/dashboard-db-oracle/DashboardDatabaseOracle.csproj -- \
+            "$RUNNER_TEMP/csharp-company-metrics.json"
+          test -s "$RUNNER_TEMP/csharp-company-metrics.json"
+      - name: Install Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - name: Compare Java JDBC and original C# Dapper for every field
+        env:
+          MEMO_DASHBOARD_DB_ORACLE: ${{ runner.temp }}/csharp-company-metrics.json
+        run: |
+          mvn -B -ntp -f backend/pom.xml \
+            -Dtest=DashboardCanonicalDatabaseParityTest test
