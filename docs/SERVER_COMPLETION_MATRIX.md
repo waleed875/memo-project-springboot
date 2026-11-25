@@ -25,7 +25,7 @@ Spring Boot feature stack through PR #34. **This is not a release claim.**
 | NotesEndpoints existing-note edits | Internal, restricted owner draft + admin slices | Full legacy SaveNoteAsync edit semantics, number/catalog/date/source/flag changes; HTTP PUT |
 | NotesEndpoints note attachments | Internal, selected admin operations and draft owner add | Public endpoints, download/delete/replace, streaming/security |
 | NotesEndpoints link replacement | Internal | Public contract and old-client concurrency agreement |
-| NotesEndpoints duplicate incidents | Read HTTP | Verify any duplicate resolution write workflows |
+| NotesEndpoints duplicate incidents | Read HTTP + internal resolution core | Three duplicate classifications now have internal write transactions; public resolution API/React parity pending |
 | DashboardEndpoints | Gap | Dashboard metrics/filters and performance |
 | ReportsEndpoints | Gap | Queries, DTOs, permissions, export behavior |
 | CompanyReportEndpoints | Gap | Company-level report calculations/export |
@@ -38,7 +38,7 @@ Spring Boot feature stack through PR #34. **This is not a release claim.**
 
 1. **Finish note update core**: full original SaveNoteAsync variations; update
    identity metadata and workflow-safe admin edits, source and link sync,
-   media replace/delete, duplicate-resolution transactions. Cover actual
+   media replace/delete, duplicate-resolution HTTP/E2E coverage. Cover actual
    001–070 schema and concurrent writes. Keep public mutation HTTP closed.
 2. **Open secure note mutation API** once command DTOs, idempotency,
    role matrices, optimistic concurrency, multipart streaming, error
