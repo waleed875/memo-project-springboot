@@ -12,7 +12,8 @@ import java.util.UUID;
  * Restricted owner edit. Null attachment preserves existing media.
  * Null expected+desired link lists preserve existing links; explicit empty
  * desired list with explicit prior snapshot clears links.
- * Does not expose number/company/type/dates/flags/source/workflow overrides.
+ * Optional metadata change is limited to owner-editable identifiers and dates.
+ * Source, LOOT, invoice and workflow overrides remain prohibited.
  */
 public record NoteDraftEditCommand(
     UUID noteId,
@@ -23,7 +24,8 @@ public record NoteDraftEditCommand(
     List<IndicatorInput> fieldValues,
     NoteAttachment attachment,
     List<UUID> expectedRelatedNoteIds,
-    List<UUID> relatedNoteIds
+    List<UUID> relatedNoteIds,
+    NoteDraftMetadata metadata
 ) {
     public NoteDraftEditCommand {
         fieldValues = fieldValues == null ? null : List.copyOf(fieldValues);
@@ -39,7 +41,19 @@ public record NoteDraftEditCommand(
         boolean saveAsDraft, boolean markAllIndicatorsCorrect, List<IndicatorInput> fieldValues
     ) {
         this(noteId, expectedUpdatedAt, notes, saveAsDraft,
-            markAllIndicatorsCorrect, fieldValues, null, null, null);
+            markAllIndicatorsCorrect, fieldValues, null, null, null, null);
+    }
+
+    /** Previous nine-argument command remains source compatible. */
+    public NoteDraftEditCommand(
+        UUID noteId, LocalDateTime expectedUpdatedAt, String notes,
+        boolean saveAsDraft, boolean markAllIndicatorsCorrect,
+        List<IndicatorInput> fieldValues, NoteAttachment attachment,
+        List<UUID> expectedRelatedNoteIds, List<UUID> relatedNoteIds
+    ) {
+        this(noteId, expectedUpdatedAt, notes, saveAsDraft,
+            markAllIndicatorsCorrect, fieldValues, attachment,
+            expectedRelatedNoteIds, relatedNoteIds, null);
     }
 
     public boolean synchronizesLinks() {
