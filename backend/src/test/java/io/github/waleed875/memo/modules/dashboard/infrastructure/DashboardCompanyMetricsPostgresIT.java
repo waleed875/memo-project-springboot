@@ -3,6 +3,7 @@ package io.github.waleed875.memo.modules.dashboard.infrastructure;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.waleed875.memo.modules.dashboard.application.*;
+import io.github.waleed875.memo.modules.identity.application.UserProfile;
 import io.github.waleed875.memo.modules.masterdata.application.MasterDataForbiddenException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
