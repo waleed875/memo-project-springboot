@@ -33,7 +33,7 @@ var fields=typeof(CompanyMetrics).GetProperties(BindingFlags.Public|BindingFlags
 if(fields.Length!=43) throw new InvalidDataException("Original CompanyMetrics property count changed");
 var select=string.Join(",",fields.Select(p => Column(p.Name)+" AS \""+p.Name+"\""));
 var sql="select "+select+" from reporting.fn_company_metrics_snapshot_v4_filtered("+
-    "@CompanyId,@From,@To,@FactoryId,@ProductionLineId,@NoteTypeId,@Status,@Cutoff,@DateBasis)";
+    "@CompanyId,cast(@From as date),cast(@To as date),@FactoryId,@ProductionLineId,@NoteTypeId,@Status,cast(@Cutoff as date),@DateBasis)";
 using var db=new NpgsqlConnection(connection);
 await db.OpenAsync();
 var results=new SortedDictionary<string,object>();
