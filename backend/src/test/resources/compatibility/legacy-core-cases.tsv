@@ -1,0 +1,51 @@
+# id|kind|a|b|c|d|e
+normalize-latin|normalize| ab- 01 / 2 |-| -|-|-
+normalize-arabic|normalize| أ ب-١٢٣ / ج |-| -|-|-
+normalize-persian|normalize|ab-۱۲۳|-|-|-|-
+normalize-blank|normalize|<empty>|-|-|-|-
+numeric-latin|positive|00123|-|-|-|-
+numeric-arabic|positive|١٢٣|-|-|-|-
+numeric-persian|positive|۱۲۳|-|-|-|-
+numeric-zero|positive|٠٠٠|-|-|-|-
+numeric-negative|positive|-12|-|-|-|-
+numeric-separator|positive|1 2|-|-|-|-
+delay-five|delay|2026-07-12|2026-07-17|-|-|-
+delay-six-same-month|delay|2026-07-12|2026-07-18|-|-|-
+delay-cross-month-on-time|delay|2026-07-29|2026-08-03|-|-|-
+delay-cross-month-late|delay|2026-07-24|2026-08-01|-|-|-
+delay-cross-year-late|delay|2025-12-27|2026-01-03|-|-|-
+delay-leap-year|delay|2024-02-24|2024-02-29|-|-|-
+delay-missing|delay|-|2026-07-30|-|-|-
+delay-invalid|delay|2026-07-30|2026-07-29|-|-|-
+status-all-correct|status|1:R:A,2:O:A|1:Correct,2:Correct|-|-|-
+status-required-unreviewed|status|1:R:A,2:O:A|1:Unreviewed,2:Correct|-|-|-
+status-required-missing|status|1:R:A,2:O:A|2:Correct|-|-|-
+status-optional-unreviewed|status|1:R:A,2:O:A|1:Correct,2:Unreviewed|-|-|-
+status-optional-error|status|1:R:A,2:O:A|1:Correct,2:Incorrect|-|-|-
+status-inactive-error|status|1:R:A,3:R:I|1:Correct,3:Missing|-|-|-
+status-incorrect-required|status|1:R:A|1:Incorrect|-|-|-
+status-no-definitions|status|-|-|-|-|-
+edit-admin-approved|edit|ADMIN|APPROVED|false|-|-
+edit-nonadmin-approved|edit|DATA_ENTRY|APPROVED|false|-|-
+edit-reviewer-complete|edit|REVIEWER|COMPLETE|false|-|-
+edit-reviewer-returned|edit|REVIEWER|RETURNED_FOR_CORRECTION|true|-|-
+edit-entry-draft|edit|DATA_ENTRY|DRAFT|true|-|-
+edit-admin-approved-as-draft|edit|ADMIN|APPROVED|true|-|-
+validate-valid|validateSubmit|123|2025-11-18|2025-11-20|1:R:A|1:Correct
+validate-required-incorrect|validateSubmit|123|2025-11-18|2025-11-20|1:R:A|1:Incorrect
+validate-missing-required|validateSubmit|123|2025-11-18|2025-11-20|1:R:A|-
+validate-unreviewed-required|validateSubmit|123|2025-11-18|2025-11-20|1:R:A|1:Unreviewed
+validate-draft-unreviewed|validateDraft|123|2025-11-18|2025-11-20|1:R:A|1:Unreviewed
+validate-blank-number|validateSubmit|<empty>|2025-11-18|2025-11-20|1:R:A|1:Correct
+validate-no-arrival|validateSubmit|123|2025-11-18|-|1:R:A|1:Correct
+validate-arrival-before-writing|validateSubmit|123|2025-11-20|2025-11-19|1:R:A|1:Correct
+validate-future-arrival|validateSubmit|123|2025-11-20|2999-11-22|1:R:A|1:Correct
+validate-no-writing-date|validateSubmit|123|-|2025-11-20|1:R:A|1:Correct
+validate-inactive-not-blocking|validateSubmit|123|2025-11-18|2025-11-20|1:R:A,3:R:I|1:Correct
+attachment-pdf|attachment|memo.PDF|255044462D312E370A2525454F46|-|-|-
+attachment-jpg|attachment|memo.jpg|FFD8FF00|-|-|-
+attachment-jpg-mismatch|attachment|memo.jpg|255044462D|-|-|-
+attachment-pdf-no-eof|attachment|memo.pdf|255044462D312E37|-|-|-
+attachment-empty|attachment|memo.pdf|-|-|-|-
+attachment-exe|attachment|memo.exe|010203|-|-|-
+attachment-tiff|attachment|memo.tiff|49492A0000|-|-|-
