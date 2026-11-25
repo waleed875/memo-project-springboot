@@ -47,6 +47,17 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class NotesWiring {
     @Bean
+    io.github.waleed875.memo.modules.notes.application.NoteDuplicateDecisionService
+        noteDuplicateDecisionService(
+            io.github.waleed875.memo.modules.notes.application.NoteDuplicateDecisionRepository repository,
+            MasterDataWriteGate gate
+        ) {
+        return new io.github.waleed875.memo.modules.notes.application.NoteDuplicateDecisionService(
+            repository, gate);
+    }
+
+
+    @Bean
     io.github.waleed875.memo.modules.notes.application.AdminApprovedMetadataEditService
         adminApprovedMetadataEditService(
             io.github.waleed875.memo.modules.notes.application.AdminApprovedMetadataEditRepository repository,
