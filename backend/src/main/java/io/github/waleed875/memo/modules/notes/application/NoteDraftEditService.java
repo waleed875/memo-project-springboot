@@ -54,6 +54,16 @@ public final class NoteDraftEditService {
             validateLinks(command.noteId(), command.expectedRelatedNoteIds());
             validateLinks(command.noteId(), command.relatedNoteIds());
         }
+        if (command.metadata() != null) {
+            var metadata = command.metadata();
+            if (metadata.noteNumber() == null || metadata.noteNumber().isBlank()
+                || metadata.companyId() == null || ZERO.equals(metadata.companyId())
+                || metadata.noteTypeId() == null || ZERO.equals(metadata.noteTypeId())
+                || metadata.arrivalAt() == null) {
+                throw new NoteSaveValidationException(
+                    "رقم المذكرة والشركة والنوع وتاريخ الوصول مطلوبة.");
+            }
+        }
         io.github.waleed875.memo.modules.notes.domain.NoteAttachmentPolicy.validate(
             command.attachment());
         return repository.edit(command, actor.id(), LocalDate.now(clock));

@@ -5,6 +5,8 @@ import io.github.waleed875.memo.modules.notes.application.NoteAccessDenied;
 import io.github.waleed875.memo.modules.notes.application.NoteDraftEditCommand;
 import io.github.waleed875.memo.modules.notes.application.NoteDraftEditConflict;
 import io.github.waleed875.memo.modules.notes.application.NoteDraftEditRepository;
+import io.github.waleed875.memo.modules.notes.application.NoteDraftMetadata;
+import io.github.waleed875.memo.modules.notes.domain.NoteNumberNormalizer;
 import io.github.waleed875.memo.modules.notes.domain.IndicatorValue;
 import io.github.waleed875.memo.modules.notes.domain.NoteSaveCandidate;
 import io.github.waleed875.memo.modules.notes.domain.NoteAttachmentPolicy;
@@ -20,6 +22,8 @@ import java.util.TreeSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.OptionalLong;
+import java.sql.Types;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -29,7 +33,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Restricted, atomic DATA_ENTRY draft/resubmission core (internal only).
- * No number, catalog, attachment, source, flag or link columns are mutated.
+ * Optional metadata fields, indicators, attachments and counterpart links are
+ * saved atomically. Source, approval and invoice/loot flags remain immutable.
  * All status, indicator, review-history and audit changes succeed or roll back.
  */
 @Repository
@@ -76,15 +81,43 @@ public class JdbcNoteDraftEditRepository implements NoteDraftEditRepository {
             throw new NoteDraftEditConflict(
                 "تغيرت الروابط منذ آخر تحميل؛ أعد تحميل المذكرة قبل حفظها.");
         }
-        if (command.synchronizesLinks()) {
+        NoteDraftMetadata submittedMeta = command.metadata();
+        boolean changingIdentity = submittedMeta != null
+            && (!submittedMeta.companyId().equals(existing.companyId())
+                || !submittedMeta.noteTypeId().equals(existing.typeId()));
+        // Legacy source rows and links have semantics tied to company and type.
+        // Rather than silently corrupt them, fail closed until a reviewed
+        // source migration command exists.
+        if (changingIdentity && (!counterpartIds(command.noteId()).isEmpty()
+            || Boolean.TRUE.equals(jdbc.queryForObject("""
+                select exists(select 1 from core.note_sources where note_id = ?)
+                """, Boolean.class, command.noteId())))) {
+            throw new NoteSaveValidationException(
+                "يجب معالجة الروابط والمصادر قبل تغيير الشركة أو نوع المذكرة.");
+        }
+        if (command.synchronizesLinks() && !changingIdentity) {
             validateRelatedNotes(command.noteId(), existing,
                 command.relatedNoteIds());
         }
         // Lock against concurrent master-data definition changes with the
         // exact existing key + seed from JdbcNoteDefinitionWriter and JdbcNoteCreator.
-        String key = "note-type-fields:" + existing.typeId().toString().replace("-", "");
+        UUID effectiveType = submittedMeta == null
+            ? existing.typeId() : submittedMeta.noteTypeId();
+        if (submittedMeta != null) {
+            validateMetadata(command.noteId(), existing, submittedMeta, today);
+        }
+        // A type change may affect the required indicator definitions.
+        String key = "note-type-fields:" + effectiveType.toString().replace("-", "");
         jdbc.queryForObject("select pg_advisory_xact_lock(hashtextextended(?, 712))",
             (rs, row) -> rs.getObject(1), key);
+        if (command.synchronizesLinks() && changingIdentity) {
+            Existing changedScope = new Existing(
+                submittedMeta.noteNumber(), submittedMeta.companyId(), submittedMeta.noteTypeId(),
+                submittedMeta.factoryId(), submittedMeta.productionLineId(),
+                submittedMeta.writingDate(), submittedMeta.arrivalAt(),
+                existing.notes(), existing.status(), existing.createdBy(), existing.updatedAt());
+            validateRelatedNotes(command.noteId(), changedScope, command.relatedNoteIds());
+        }
 
         List<RequiredNoteField> definitions = jdbc.query("""
             select nf.id, nf.name_ar, ntf.is_required,
@@ -97,7 +130,7 @@ public class JdbcNoteDraftEditRepository implements NoteDraftEditRepository {
             """, (rs, row) -> new RequiredNoteField(
                 rs.getObject("id", UUID.class), rs.getString("name_ar"),
                 rs.getBoolean("is_required"), rs.getBoolean("effective_active")
-            ), existing.typeId());
+            ), effectiveType);
 
         Set<UUID> active = new HashSet<>();
         for (var definition : definitions) {
@@ -109,10 +142,14 @@ public class JdbcNoteDraftEditRepository implements NoteDraftEditRepository {
         var baseIndicators = values.stream()
             .map(v -> new NoteSaveCandidate.IndicatorInput(v.fieldId(), v.value())).toList();
         var candidate = new NoteSaveCandidate(
-            existing.number(), existing.companyId(), existing.typeId(),
-            existing.factoryId(), existing.lineId(), existing.writingDate(),
-            existing.arrivalAt(), command.saveAsDraft(), command.markAllIndicatorsCorrect(),
-            baseIndicators);
+            submittedMeta == null ? existing.number() : submittedMeta.noteNumber(),
+            submittedMeta == null ? existing.companyId() : submittedMeta.companyId(),
+            effectiveType,
+            submittedMeta == null ? existing.factoryId() : submittedMeta.factoryId(),
+            submittedMeta == null ? existing.lineId() : submittedMeta.productionLineId(),
+            submittedMeta == null ? existing.writingDate() : submittedMeta.writingDate(),
+            submittedMeta == null ? existing.arrivalAt() : submittedMeta.arrivalAt(),
+            command.saveAsDraft(), command.markAllIndicatorsCorrect(), baseIndicators);
         NoteSavePolicy.validate(candidate, definitions, today);
         NoteStatus status = NoteSavePolicy.calculateStatus(
             definitions, baseIndicators, command.saveAsDraft());
@@ -140,6 +177,51 @@ public class JdbcNoteDraftEditRepository implements NoteDraftEditRepository {
             command.expectedUpdatedAt());
         if (updated != 1) {
             throw new NoteDraftEditConflict("تغيرت حالة المذكرة أثناء الحفظ.");
+        }
+
+        if (submittedMeta != null) {
+            String normalized = NoteNumberNormalizer.normalize(submittedMeta.noteNumber());
+            OptionalLong numeric = NoteNumberNormalizer.positiveNumericValue(
+                submittedMeta.noteNumber());
+            int changed = jdbc.update("""
+                update core.notes
+                set note_number = ?, note_number_normalized = ?,
+                    note_number_value = ?, note_year = ?,
+                    company_id = ?, note_type_id = ?, factory_id = ?,
+                    production_line_id = ?, writing_date = ?, arrival_at = ?,
+                    updated_by = ?
+                where id = ? and not is_deleted and created_by = ?
+                """, submittedMeta.noteNumber(), normalized, numeric.getAsLong(),
+                submittedMeta.writingDate() == null ? null : submittedMeta.writingDate().getYear(),
+                submittedMeta.companyId(), submittedMeta.noteTypeId(),
+                submittedMeta.factoryId(), submittedMeta.productionLineId(),
+                submittedMeta.writingDate(), submittedMeta.arrivalAt(), actor,
+                command.noteId(), actor);
+            if (changed != 1) {
+                throw new NoteDraftEditConflict("تغيرت بيانات المذكرة أثناء الحفظ.");
+            }
+            jdbc.update("""
+                insert into audit.logs(
+                    user_id, action_type, schema_name, table_name, record_id,
+                    description, old_value, new_value)
+                values (?, 'UPDATE_NOTE_METADATA', 'core', 'notes', ?,
+                    'تعديل بيانات تعريف المذكرة',
+                    jsonb_build_object('number', ?, 'companyId', cast(? as text),
+                      'typeId', cast(? as text), 'factoryId', cast(? as text),
+                      'lineId', cast(? as text), 'writingDate', cast(? as date),
+                      'arrivalAt', cast(? as date)),
+                    jsonb_build_object('number', ?, 'companyId', cast(? as text),
+                      'typeId', cast(? as text), 'factoryId', cast(? as text),
+                      'lineId', cast(? as text), 'writingDate', cast(? as date),
+                      'arrivalAt', cast(? as date)))
+                """, actor, command.noteId(),
+                existing.number(), existing.companyId().toString(), existing.typeId().toString(),
+                asText(existing.factoryId()), asText(existing.lineId()),
+                existing.writingDate(), existing.arrivalAt(),
+                submittedMeta.noteNumber(), submittedMeta.companyId().toString(),
+                submittedMeta.noteTypeId().toString(),
+                asText(submittedMeta.factoryId()), asText(submittedMeta.productionLineId()),
+                submittedMeta.writingDate(), submittedMeta.arrivalAt());
         }
 
         if (values.isEmpty()) {
@@ -284,6 +366,82 @@ public class JdbcNoteDraftEditRepository implements NoteDraftEditRepository {
         return new EditResult(command.noteId(), status, newVersion);
     }
 
+
+    private void validateMetadata(
+        UUID noteId, Existing original, NoteDraftMetadata meta, LocalDate today
+    ) {
+        String normalized = NoteNumberNormalizer.normalize(meta.noteNumber());
+        OptionalLong number = NoteNumberNormalizer.positiveNumericValue(meta.noteNumber());
+        if (normalized.isEmpty() || number.isEmpty()) {
+            throw new NoteSaveValidationException(
+                "رقم المذكرة يجب أن يكون عددًا صحيحًا موجبًا.");
+        }
+        if (meta.writingDate() != null && meta.arrivalAt().isBefore(meta.writingDate())) {
+            throw new NoteSaveValidationException(
+                "تاريخ الوصول لا يمكن أن يسبق تاريخ كتابة المذكرة.");
+        }
+        if (meta.arrivalAt().isAfter(today)) {
+            throw new NoteSaveValidationException("تاريخ الوصول لا يمكن أن يكون في المستقبل.");
+        }
+        Boolean catalog = jdbc.queryForObject("""
+            select exists(select 1 from core.companies
+                          where id = ? and is_active and not is_deleted)
+               and exists(select 1 from core.note_types
+                          where id = ? and is_active and not is_deleted)
+            """, Boolean.class, meta.companyId(), meta.noteTypeId());
+        if (!Boolean.TRUE.equals(catalog)) {
+            throw new NoteSaveValidationException("الشركة أو نوع المذكرة غير فعال.");
+        }
+        if (meta.factoryId() == null && meta.productionLineId() != null) {
+            throw new NoteSaveValidationException("يجب تحديد مصنع لخط الإنتاج.");
+        }
+        if (meta.factoryId() != null && !Boolean.TRUE.equals(jdbc.queryForObject("""
+            select exists(select 1 from core.factories
+                where id = ? and company_id = ? and is_active and not is_deleted)
+            """, Boolean.class, meta.factoryId(), meta.companyId()))) {
+            throw new NoteSaveValidationException("المصنع لا يتبع الشركة المحددة.");
+        }
+        if (meta.productionLineId() != null
+            && !Boolean.TRUE.equals(jdbc.queryForObject("""
+                select exists(select 1 from core.production_lines
+                    where id = ? and factory_id = ? and is_active and not is_deleted)
+                """, Boolean.class, meta.productionLineId(), meta.factoryId()))) {
+            throw new NoteSaveValidationException("خط الإنتاج غير فعال أو لا يتبع المصنع.");
+        }
+        // Same duplicate advisory key and seed as JdbcNoteCreator; exclude
+        // the edited note and recheck within this write transaction.
+        Integer year = meta.writingDate() == null ? null : meta.writingDate().getYear();
+        String key = meta.companyId().toString().replace("-", "")
+            + "|" + meta.noteTypeId().toString().replace("-", "")
+            + "|" + (year == null ? "legacy" : year)
+            + "|" + number.getAsLong();
+        jdbc.queryForObject("select pg_advisory_xact_lock(hashtextextended(?, 127))",
+            (rs, row) -> rs.getObject(1), key);
+        Integer duplicates = named.queryForObject("""
+            select count(*) from core.notes
+            where id <> :id and not is_deleted and company_id = :company
+              and note_type_id = :type
+              and ((note_number_value = :numeric
+                    and (:year is null or note_year = :year))
+                or (note_number_value is null and note_number_normalized = :normalized
+                    and (:year is null
+                         or extract(year from writing_date)::int = :year)))
+            """, new MapSqlParameterSource()
+                .addValue("id", noteId)
+                .addValue("company", meta.companyId())
+                .addValue("type", meta.noteTypeId())
+                .addValue("numeric", number.getAsLong(), Types.BIGINT)
+                .addValue("normalized", normalized)
+                .addValue("year", year, Types.INTEGER), Integer.class);
+        if (duplicates == null || duplicates > 0) {
+            throw new NoteSaveValidationException(
+                "يوجد رقم مذكرة مكرر؛ يجب معالجة حالة التكرار صراحةً.");
+        }
+    }
+
+    private static String asText(UUID id) {
+        return id == null ? null : id.toString();
+    }
 
     private List<UUID> counterpartIds(UUID noteId) {
         List<UUID> results = jdbc.query("""
