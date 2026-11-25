@@ -35,10 +35,10 @@ class InternalDashboardUnifiedControllerTest {
     @Test void sessionAndRoleAreRequiredBeforeDatabaseWork() throws Exception {
         when(sessions.resolve(any(HttpServletRequest.class))).thenReturn(Optional.empty());
         mvc.perform(get("/api/internal/dashboard/unified")).andExpect(status().isUnauthorized());
+        doThrow(new io.github.waleed875.memo.modules.masterdata.application.MasterDataForbiddenException())
+            .when(service).read(any(),any(),anyInt());
         for(String role:List.of("REVIEWER","VIEWER","DATA_ENTRY")) {
             actor(role,UUID.randomUUID());
-            when(service.read(any(),any(),anyInt()))
-                .thenThrow(new io.github.waleed875.memo.modules.masterdata.application.MasterDataForbiddenException());
             mvc.perform(get("/api/internal/dashboard/unified")).andExpect(status().isForbidden());
         }
         verify(service,times(3)).read(any(),any(),anyInt());
