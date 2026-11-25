@@ -127,7 +127,7 @@ public class JdbcDashboardActivityReader implements DashboardActivityReader {
             select n.id, n.note_number, c.name as company_name,
                    f.name as factory_name, pl.name as production_line_name,
                    nt.name_ar as note_type_name,
-                   n.status, n.writing_date, n.arrival_at
+                   n.status, n.writing_date, n.arrival_at::timestamp as arrival_at
             from scoped n
             left join core.companies c on c.id = n.company_id
             left join core.factories f on f.id = n.factory_id

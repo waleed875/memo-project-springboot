@@ -118,7 +118,7 @@ public class JdbcDashboardSummaryReader implements DashboardSummaryReader {
                         and arrival_at::date - writing_date::date > 5)
                       ::double precision as max_late_days,
                   max(arrival_at)::date as latest_arrival_date,
-                  max(arrival_at) as latest_arrival_timestamp,
+                  max(arrival_at)::timestamp as latest_arrival_timestamp,
                   count(*) filter (where writing_date is not null
                       and arrival_at >= writing_date) as eligible_notes,
                   count(*) filter (where writing_date is not null
