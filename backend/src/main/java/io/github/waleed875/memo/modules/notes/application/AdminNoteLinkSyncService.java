@@ -46,10 +46,20 @@ public final class AdminNoteLinkSyncService {
     public static void validate(AdminNoteLinkSyncCommand command) {
         if (command == null || command.noteId() == null
             || EMPTY.equals(command.noteId()) || command.expectedUpdatedAt() == null
+            || command.expectedRelatedNoteIds() == null
+            || command.expectedRelatedNoteIds().size() > MAX_LINKS
             || command.relatedNoteIds() == null
             || command.relatedNoteIds().size() > MAX_LINKS) {
             throw new NoteSaveValidationException(
                 "معرّف المذكرة ونسخة التعديل وقائمة الروابط الصريحة مطلوبة.");
+        }
+        var expected = new HashSet<UUID>();
+        for (UUID id : command.expectedRelatedNoteIds()) {
+            if (id == null || EMPTY.equals(id) || id.equals(command.noteId())
+                || !expected.add(id)) {
+                throw new NoteSaveValidationException(
+                    "قائمة الروابط السابقة غير صالحة أو تحتوي على تكرار.");
+            }
         }
         var ids = new HashSet<UUID>();
         for (UUID id : command.relatedNoteIds()) {

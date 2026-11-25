@@ -68,6 +68,10 @@ public class JdbcAdminNoteLinkSyncRepository implements AdminNoteLinkSyncReposit
             (rs, row) -> rs.getObject(1), LOCK_NAME, LOCK_SEED);
 
         List<UUID> before = counterpartIds(command.noteId());
+        if (!new HashSet<>(before).equals(new HashSet<>(command.expectedRelatedNoteIds()))) {
+            throw new NoteDraftEditConflict(
+                "تغيرت روابط المذكرة منذ آخر قراءة؛ أعد تحميل الروابط قبل الحفظ.");
+        }
         var lockedIds = new TreeSet<UUID>();
         lockedIds.add(command.noteId());
         lockedIds.addAll(command.relatedNoteIds());
@@ -105,7 +109,8 @@ public class JdbcAdminNoteLinkSyncRepository implements AdminNoteLinkSyncReposit
         // If another legacy writer changed the pairs during lock acquisition,
         // fail closed rather than applying a set based on a stale snapshot.
         List<UUID> settled = counterpartIds(command.noteId());
-        if (!before.equals(settled)) {
+        if (!before.equals(settled)
+            || !new HashSet<>(settled).equals(new HashSet<>(command.expectedRelatedNoteIds()))) {
             throw new NoteDraftEditConflict(
                 "تغيرت روابط المذكرة أثناء التعديل؛ أعد تحميل المذكرة.");
         }

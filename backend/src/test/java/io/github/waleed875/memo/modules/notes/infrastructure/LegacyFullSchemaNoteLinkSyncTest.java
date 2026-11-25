@@ -92,8 +92,19 @@ class LegacyFullSchemaNoteLinkSyncTest {
         return jdbc.queryForObject(
             "select updated_at from core.notes where id = ?", LocalDateTime.class, noteId);
     }
+    private List<UUID> currentLinks(UUID noteId) {
+        return jdbc.query("""
+            select case when source_note_id = ? then related_note_id
+                        else source_note_id end
+            from core.note_links
+            where source_note_id = ? or related_note_id = ?
+            order by 1
+            """, (rs, index) -> rs.getObject(1, UUID.class),
+            noteId, noteId, noteId);
+    }
     private AdminNoteLinkSyncCommand command(UUID noteId, UUID... exits) {
-        return new AdminNoteLinkSyncCommand(noteId, revision(noteId), List.of(exits));
+        return new AdminNoteLinkSyncCommand(
+            noteId, revision(noteId), currentLinks(noteId), List.of(exits));
     }
     private int linkCount(UUID entry, UUID exit) {
         return jdbc.queryForObject("""
@@ -213,8 +224,8 @@ class LegacyFullSchemaNoteLinkSyncTest {
     void twoJavaWritersWithSameRevisionCannotBothCommit() throws Exception {
         UUID e = entry(), a = exit(), b = exit();
         LocalDateTime version = revision(e);
-        var first = new AdminNoteLinkSyncCommand(e, version, List.of(a));
-        var second = new AdminNoteLinkSyncCommand(e, version, List.of(b));
+        var first = new AdminNoteLinkSyncCommand(e, version, List.of(), List.of(a));
+        var second = new AdminNoteLinkSyncCommand(e, version, List.of(), List.of(b));
         ExecutorService pool = Executors.newFixedThreadPool(2);
         CountDownLatch ready = new CountDownLatch(2), start = new CountDownLatch(1);
         AtomicInteger accepted = new AtomicInteger(), conflicts = new AtomicInteger();
@@ -264,5 +275,113 @@ class LegacyFullSchemaNoteLinkSyncTest {
         assertEquals(0, audits(e));
         assertEquals(0, linkCount(e, otherEntry));
         assertEquals(0, linkCount(e, foreignExit));
+    }
+
+    @Test
+    void directSourceAdditionMakesPreviouslyReadEmptySnapshotStale() {
+        UUID e = entry(), a = exit(), b = exit();
+        LocalDateTime observedRevision = revision(e);
+        var stale = new AdminNoteLinkSyncCommand(
+            e, observedRevision, List.of(), List.of(b));
+
+        UUID source = UUID.randomUUID();
+        jdbc.update("""
+            insert into core.note_sources(id, note_id, source_type, created_by)
+            values (?, ?, 'EXIT', ?)
+            """, source, e, admin);
+        jdbc.update("""
+            insert into core.note_source_exit_refs(source_id, exit_note_id, reference_order)
+            values (?, ?, 1)
+            """, source, a);
+
+        assertThrows(NoteDraftEditConflict.class,
+            () -> repository.sync(stale, admin));
+        assertEquals(1, linkCount(e, a));
+        assertEquals(1, sourceRefCount(e, a));
+        assertEquals(0, linkCount(e, b));
+        assertEquals(0, sourceRefCount(e, b));
+        assertEquals(0, audits(e));
+
+        var result = repository.sync(command(e, a, b), admin);
+        assertEquals(1, result.added());
+        assertEquals(0, result.removed());
+        assertEquals(1, linkCount(e, a));
+        assertEquals(1, linkCount(e, b));
+        assertEquals(1, sourceRefCount(e, b));
+    }
+
+    @Test
+    void directSourceDeletionRejectsStaleReplacement() {
+        UUID e = entry(), a = exit(), b = exit();
+        UUID source = UUID.randomUUID();
+        jdbc.update("""
+            insert into core.note_sources(id, note_id, source_type, created_by)
+            values (?, ?, 'EXIT', ?)
+            """, source, e, admin);
+        jdbc.update("""
+            insert into core.note_source_exit_refs(source_id, exit_note_id, reference_order)
+            values (?, ?, 1)
+            """, source, a);
+        var stale = new AdminNoteLinkSyncCommand(
+            e, revision(e), List.of(a), List.of(b));
+        jdbc.update("""
+            delete from core.note_source_exit_refs
+            where source_id = ? and exit_note_id = ?
+            """, source, a);
+        assertThrows(NoteDraftEditConflict.class,
+            () -> repository.sync(stale, admin));
+        assertEquals(0, linkCount(e, a));
+        assertEquals(0, linkCount(e, b));
+        assertEquals(0, sourceRefCount(e, a));
+        assertEquals(0, sourceRefCount(e, b));
+        assertEquals(0, audits(e));
+    }
+
+    @Test
+    void parallelSourceCommitBeforeJavaReplacementRequiresRefresh() throws Exception {
+        UUID e = entry(), a = exit(), b = exit();
+        var stale = new AdminNoteLinkSyncCommand(
+            e, revision(e), List.of(), List.of(b));
+        UUID source = UUID.randomUUID();
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        CountDownLatch legacyCommitted = new CountDownLatch(1);
+        try {
+            var legacy = pool.submit((Callable<Void>) () -> {
+                ready.countDown();
+                start.await(10, TimeUnit.SECONDS);
+                jdbc.update("""
+                    insert into core.note_sources(id, note_id, source_type, created_by)
+                    values (?, ?, 'EXIT', ?)
+                    """, source, e, admin);
+                jdbc.update("""
+                    insert into core.note_source_exit_refs(source_id, exit_note_id, reference_order)
+                    values (?, ?, 1)
+                    """, source, a);
+                legacyCommitted.countDown();
+                return null;
+            });
+            var javaCommand = pool.submit((Callable<Void>) () -> {
+                ready.countDown();
+                start.await(10, TimeUnit.SECONDS);
+                assertTrue(legacyCommitted.await(10, TimeUnit.SECONDS));
+                assertThrows(NoteDraftEditConflict.class,
+                    () -> repository.sync(stale, admin));
+                return null;
+            });
+            assertTrue(ready.await(10, TimeUnit.SECONDS));
+            start.countDown();
+            legacy.get(20, TimeUnit.SECONDS);
+            javaCommand.get(20, TimeUnit.SECONDS);
+            assertEquals(1, linkCount(e, a));
+            assertEquals(1, sourceRefCount(e, a));
+            assertEquals(0, linkCount(e, b));
+            assertEquals(0, audits(e));
+        } finally {
+            start.countDown();
+            legacyCommitted.countDown();
+            pool.shutdownNow();
+        }
     }
 }
