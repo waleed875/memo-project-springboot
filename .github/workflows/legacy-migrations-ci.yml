@@ -56,7 +56,8 @@ jobs:
           shopt -s nullglob
           scripts_dir="legacy-reference/Memo_Project_Handover_v2.0.2/02_الكود_المصدري_Source_Code/source/database"
           test -d "$scripts_dir"
-          for version in $(seq -w 1 70); do
+          for n in $(seq 1 70); do
+            version=$(printf '%03d' "$n")
             scripts=( "$scripts_dir"/"$version"_*.sql )
             if (( ${#scripts[@]} != 1 )); then
               echo "::error::Expected exactly one migration for version $version; found ${#scripts[@]}"
@@ -71,14 +72,19 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f backend/src/test/resources/legacy-migration-link-parity.sql
       - name: Verify migration and source contract objects
         run: |
-          psql -X -v ON_ERROR_STOP=1 -Atc "
-          select case when
-            to_regclass('core.note_links') is not null
-            and to_regclass('core.note_sources') is not null
-            and to_regclass('core.note_source_exit_refs') is not null
-            and to_regclass('core.v_note_links_compat') is not null
-            and to_regclass('system.database_settings') is not null
-            and to_regprocedure('core.sync_legacy_note_link_to_source()') is not null
-            and to_regprocedure('core.sync_source_ref_to_legacy_note_link()') is not null
-          then 'PASS' else 1/0::text end;
-          "
+          psql -X -v ON_ERROR_STOP=1 <<'SQL'
+          do $checks$
+          begin
+            if to_regclass('core.note_links') is null
+              or to_regclass('core.note_sources') is null
+              or to_regclass('core.note_source_exit_refs') is null
+              or to_regclass('core.v_note_links_compat') is null
+              or to_regclass('system.database_settings') is null
+              or to_regprocedure('core.sync_legacy_note_link_to_source()') is null
+              or to_regprocedure('core.sync_source_ref_to_legacy_note_link()') is null
+            then
+              raise exception 'Required legacy migration objects were not created';
+            end if;
+          end
+          $checks$;
+          SQL
