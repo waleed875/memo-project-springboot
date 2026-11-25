@@ -6,17 +6,21 @@ on:
       - 'backend/**'
       - 'tools/dashboard-db-oracle/**'
       - 'tools/dashboard-full-query-oracle/**'
+      - 'tools/dashboard-live-server-e2e/**'
+      - 'tools/dashboard-browser-e2e/harness/**'
   pull_request:
     paths:
       - '.github/workflows/dashboard-db-parity-ci.yml'
       - 'backend/**'
       - 'tools/dashboard-db-oracle/**'
       - 'tools/dashboard-full-query-oracle/**'
+      - 'tools/dashboard-live-server-e2e/**'
+      - 'tools/dashboard-browser-e2e/harness/**'
 permissions:
   contents: read
 jobs:
   dashboard-database-parity:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
       postgres:
@@ -60,6 +64,7 @@ jobs:
             Memo_Project_Handover_v2.0.2/02_الكود_المصدري_Source_Code/source/src/MemoDashboard.Web/Backend/Services/MetricsCalculator.cs
             Memo_Project_Handover_v2.0.2/02_الكود_المصدري_Source_Code/source/src/MemoDashboard.Web/Backend/Services/DelayCalculator.cs
             Memo_Project_Handover_v2.0.2/02_الكود_المصدري_Source_Code/source/src/MemoDashboard.Web/Backend/Services/StatusTranslations.cs
+            Memo_Project_Handover_v2.0.2/02_الكود_المصدري_Source_Code/source/src/MemoDashboard.Web/Frontend
           sparse-checkout-cone-mode: false
       - name: Install PostgreSQL 16 client
         run: |
@@ -115,3 +120,59 @@ jobs:
         run: |
           mvn -B -ntp -f backend/pom.xml \
             -Dtest=DashboardOriginalQueryDatabaseParityTest test
+      - name: Seed temporary bcrypt accounts for live-session browser tests
+        run: psql -X -v ON_ERROR_STOP=1 -f tools/dashboard-live-server-e2e/seed-browser-auth.sql
+      - name: Build real Spring Boot executable
+        run: mvn -B -ntp -f backend/pom.xml -DskipTests package
+      - name: Start the real Spring Boot server on the disposable PostgreSQL database
+        shell: bash
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://127.0.0.1:5432/memo_dashboard_parity
+          SPRING_DATASOURCE_USERNAME: postgres
+          SPRING_DATASOURCE_PASSWORD: test_only_password
+          SERVER_PORT: '8080'
+          MEMO_SESSION_COOKIE_SECURE: 'false'
+        run: |
+          set -euo pipefail
+          jar=(backend/target/memo-api-*.jar)
+          if (( ${#jar[@]} != 1 )); then echo 'Expected one executable Spring Boot JAR'; exit 1; fi
+          nohup java -jar "${jar[0]}" > "$RUNNER_TEMP/memo-live-spring.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/memo-live-spring.pid"
+          for n in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:8080/actuator/health/readiness >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/memo-live-spring.log"
+          exit 1
+      - name: Install Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: legacy-reference/Memo_Project_Handover_v2.0.2/02_الكود_المصدري_Source_Code/source/src/MemoDashboard.Web/Frontend/package-lock.json
+      - name: Install original React frontend dependencies
+        working-directory: legacy-reference/Memo_Project_Handover_v2.0.2/02_الكود_المصدري_Source_Code/source/src/MemoDashboard.Web/Frontend
+        run: npm ci --no-audit --no-fund
+      - name: Install isolated Playwright Chromium runner
+        run: |
+          npm install --prefix tools/dashboard-live-server-e2e --no-audit --no-fund --ignore-scripts
+          ./tools/dashboard-live-server-e2e/node_modules/.bin/playwright install --with-deps chromium
+      - name: Mount test-only proxy and unchanged original React DashboardLive
+        env:
+          MEMO_ORIGINAL_FRONTEND: legacy-reference/Memo_Project_Handover_v2.0.2/02_الكود_المصدري_Source_Code/source/src/MemoDashboard.Web/Frontend
+        run: node tools/dashboard-live-server-e2e/mount-harness.mjs
+      - name: Run real Chromium + actual HTTP Spring Boot sessions and PostgreSQL
+        env:
+          MEMO_CI_BROWSER_PASSWORD: CIOnly_Playwright_58_2026!
+          TZ: Asia/Damascus
+        run: ./tools/dashboard-live-server-e2e/node_modules/.bin/playwright test --config tools/dashboard-live-server-e2e/playwright.config.mjs
+      - name: Upload real Spring browser failures and server log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-live-session-chromium-artifacts
+          path: |
+            tools/dashboard-live-server-e2e/results/
+            ${{ runner.temp }}/memo-live-spring.log
+          if-no-files-found: ignore
+          retention-days: 7
