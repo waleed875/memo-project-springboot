@@ -33,6 +33,10 @@ import io.github.waleed875.memo.modules.notes.application.AdminNoteAttachmentBat
 import io.github.waleed875.memo.modules.notes.application.AdminNoteAttachmentBatchUploadService;
 import io.github.waleed875.memo.modules.notes.application.AdminNoteLinkSyncRepository;
 import io.github.waleed875.memo.modules.notes.application.AdminNoteLinkSyncService;
+import io.github.waleed875.memo.modules.notes.infrastructure.JdbcAdminNoteLinkSyncRepository;
+import io.github.waleed875.memo.modules.notes.infrastructure.RetryingAdminNoteLinkSyncRepository;
+import org.springframework.context.annotation.Primary;
+import org.springframework.transaction.PlatformTransactionManager;
 import java.time.Clock;
 import java.time.ZoneId;
 import io.github.waleed875.memo.modules.notes.domain.NoteReadPolicy;
@@ -42,6 +46,20 @@ import org.springframework.context.annotation.Configuration;
 /** Compose note read use cases without coupling domain to HTTP or JDBC. */
 @Configuration
 public class NotesWiring {
+    /**
+     * Application services receive this decorated port, not the raw JDBC port.
+     * Each attempt runs a new top-level PostgreSQL transaction.
+     */
+    @Bean
+    @Primary
+    AdminNoteLinkSyncRepository retryingAdminNoteLinkSyncRepository(
+        JdbcAdminNoteLinkSyncRepository jdbcRepository,
+        PlatformTransactionManager transactionManager
+    ) {
+        return new RetryingAdminNoteLinkSyncRepository(jdbcRepository, transactionManager);
+    }
+
+
     @Bean
     AdminNoteLinkSyncService adminNoteLinkSyncService(
         AdminNoteLinkSyncRepository repository, MasterDataWriteGate gate
