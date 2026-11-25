@@ -59,6 +59,14 @@ public class DashboardWiring {
         return new io.github.waleed875.memo.modules.dashboard.application.DashboardFlowService(reader);
     }
 
+    @Bean
+    io.github.waleed875.memo.modules.dashboard.application.DashboardCompanyMetricsService
+        dashboardCompanyMetricsService(
+            io.github.waleed875.memo.modules.dashboard.application.DashboardCompanyMetricsReader reader
+        ) {
+        return new io.github.waleed875.memo.modules.dashboard.application.DashboardCompanyMetricsService(reader);
+    }
+
     @Bean DashboardLookupsService dashboardLookupsService(DashboardLookupsReader reader) {
         return new DashboardLookupsService(reader);
     }
