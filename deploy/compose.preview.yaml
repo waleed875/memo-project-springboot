@@ -35,7 +35,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    networks: [memo_internal]
+    networks: [memo_internal, memo_edge]
     read_only: true
     tmpfs:
       - /tmp:rw,nosuid,nodev,size=64m
@@ -47,6 +47,8 @@ services:
 networks:
   memo_internal:
     internal: true
+  memo_edge:
+    driver: bridge
 
 volumes:
   postgres_preview_data:
