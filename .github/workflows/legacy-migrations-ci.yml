@@ -4,6 +4,7 @@ on:
     paths:
       - '.github/workflows/legacy-migrations-ci.yml'
       - 'backend/src/test/resources/legacy-migration-*.sql'
+      - 'backend/src/test/java/**/LegacyFullSchemaNoteLinkSyncTest.java'
   pull_request:
     paths:
       - '.github/workflows/legacy-migrations-ci.yml'
@@ -67,6 +68,18 @@ jobs:
             psql -X -v ON_ERROR_STOP=1 -1 -f "${scripts[0]}"
             echo "::endgroup::"
           done
+      - name: Set up Java 21 for full-schema application adapter tests
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - name: Run Java link synchronizer against the actual 001-070 schema
+        env:
+          MEMO_FULL_LEGACY_SCHEMA: 'true'
+        run: |
+          mvn -B -ntp -f backend/pom.xml -Dtest=LegacyFullSchemaNoteLinkSyncTest test
       - name: Test the actual 063 and 070 triggers and link/source parity
         run: |
           psql -X -v ON_ERROR_STOP=1 -f backend/src/test/resources/legacy-migration-link-parity.sql
