@@ -10,5 +10,5 @@ services:
     depends_on:
       - memo-api
     networks:
-      - memo_internal
+      - memo_edge
     restart: unless-stopped

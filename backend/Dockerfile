@@ -2,11 +2,22 @@
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /build
 COPY pom.xml .
-RUN mvn -B -ntp dependency:go-offline
+# Maven Central can rate-limit cold Docker builds (HTTP 429); retry with backoff.
+RUN set -eu; \
+    for attempt in 1 2 3 4; do \
+      if mvn -B -ntp dependency:go-offline; then exit 0; fi; \
+      if [ "$attempt" -eq 4 ]; then exit 1; fi; \
+      sleep $((attempt * 20)); \
+    done
 COPY src ./src
 COPY docker/HealthProbe.java /tmp/HealthProbe.java
 # Unit tests run here; Docker-based *IT tests only run in CI's mvn verify.
-RUN mvn -B -ntp package && \
+RUN set -eu; \
+    for attempt in 1 2 3 4; do \
+      if mvn -B -ntp package; then break; fi; \
+      if [ "$attempt" -eq 4 ]; then exit 1; fi; \
+      sleep $((attempt * 20)); \
+    done; \
     mkdir -p /tmp/probe && javac -d /tmp/probe /tmp/HealthProbe.java
 
 FROM eclipse-temurin:21-jre-noble
