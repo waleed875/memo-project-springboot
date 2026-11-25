@@ -35,9 +35,6 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Repository
 public class JdbcAdminNoteLinkSyncRepository implements AdminNoteLinkSyncRepository {
-    private static final String LOCK_NAME = "memo:admin-note-link-sync";
-    private static final int LOCK_SEED = 23070;
-
     private record Scope(
         UUID id, UUID companyId, String type, String number,
         boolean loot, LocalDateTime updatedAt
@@ -63,9 +60,7 @@ public class JdbcAdminNoteLinkSyncRepository implements AdminNoteLinkSyncReposit
         // All calls to this new internal command use the same advisory lock.
         // This is intentionally coarse until the full schema/trigger races
         // with the original source writer have been golden-master tested.
-        jdbc.queryForObject(
-            "select pg_advisory_xact_lock(hashtextextended(?, ?))",
-            (rs, row) -> rs.getObject(1), LOCK_NAME, LOCK_SEED);
+        NoteLinkWriteLock.acquire(jdbc);
 
         List<UUID> before = counterpartIds(command.noteId());
         if (!new HashSet<>(before).equals(new HashSet<>(command.expectedRelatedNoteIds()))) {

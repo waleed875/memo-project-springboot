@@ -6,6 +6,7 @@ on:
       - 'backend/src/test/resources/legacy-migration-*.sql'
       - 'backend/src/test/java/**/LegacyFullSchemaNoteLinkSyncTest.java'
       - 'backend/src/test/java/**/LegacyFullSchemaSharedLockProtocolTest.java'
+      - 'backend/src/test/java/**/LegacyFullSchemaSpringSourceLinkLockTest.java'
   pull_request:
     paths:
       - '.github/workflows/legacy-migrations-ci.yml'
@@ -80,7 +81,7 @@ jobs:
         env:
           MEMO_FULL_LEGACY_SCHEMA: 'true'
         run: |
-          mvn -B -ntp -f backend/pom.xml -Dtest=LegacyFullSchemaNoteLinkSyncTest,LegacyFullSchemaSharedLockProtocolTest test
+          mvn -B -ntp -f backend/pom.xml -Dtest=LegacyFullSchemaNoteLinkSyncTest,LegacyFullSchemaSharedLockProtocolTest,LegacyFullSchemaSpringSourceLinkLockTest test
       - name: Test the actual 063 and 070 triggers and link/source parity
         run: |
           psql -X -v ON_ERROR_STOP=1 -f backend/src/test/resources/legacy-migration-link-parity.sql
