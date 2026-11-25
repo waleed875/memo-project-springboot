@@ -1,5 +1,7 @@
 package io.github.waleed875.memo.modules.dashboard.api;
 
+import io.github.waleed875.memo.modules.dashboard.application.DashboardLegacySnapshotAdapter;
+import io.github.waleed875.memo.modules.dashboard.application.DashboardLegacySnapshotPreview;
 import io.github.waleed875.memo.modules.dashboard.application.DashboardSummaryCriteria;
 import io.github.waleed875.memo.modules.dashboard.application.DashboardUnifiedService;
 import io.github.waleed875.memo.modules.dashboard.application.DashboardUnifiedSnapshot;
@@ -56,6 +58,31 @@ public final class InternalDashboardUnifiedController {
             productionLineId,noteTypeId,status,date(entryCutoffDate));
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
             .body(unified.read(actor,criteria,minSample));
+    }
+
+    /**
+     * Schema-preview envelope. Not interchangeable with the public legacy API.
+     * All data comes from the same unified repeatable-read operation.
+     */
+    @GetMapping("/api/internal/dashboard/snapshot-preview")
+    public ResponseEntity<DashboardLegacySnapshotPreview> preview(
+        @RequestParam(required=false) String from,
+        @RequestParam(required=false) String to,
+        @RequestParam(required=false) String dateBasis,
+        @RequestParam(required=false) UUID companyId,
+        @RequestParam(required=false) UUID factoryId,
+        @RequestParam(required=false) UUID productionLineId,
+        @RequestParam(required=false) UUID noteTypeId,
+        @RequestParam(required=false) String status,
+        @RequestParam(required=false) String entryCutoffDate,
+        @RequestParam(defaultValue="10") int minSample,
+        HttpServletRequest request
+    ) {
+        DashboardUnifiedSnapshot unified=read(
+            from,to,dateBasis,companyId,factoryId,productionLineId,
+            noteTypeId,status,entryCutoffDate,minSample,request).getBody();
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+            .body(DashboardLegacySnapshotAdapter.toPreview(unified));
     }
 
     private static LocalDate date(String raw) {

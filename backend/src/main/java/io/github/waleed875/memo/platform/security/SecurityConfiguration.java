@@ -58,6 +58,8 @@ public class SecurityConfiguration {
                 "/api/internal/dashboard/company-metrics").permitAll()
             .requestMatchers(HttpMethod.GET,
                 "/api/internal/dashboard/unified").permitAll()
+            .requestMatchers(HttpMethod.GET,
+                "/api/internal/dashboard/snapshot-preview").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/notes/review-queue").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/notes/{id}/source").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/notes/{id}/source").permitAll()
