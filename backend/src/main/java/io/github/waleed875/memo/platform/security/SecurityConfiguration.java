@@ -51,7 +51,9 @@ public class SecurityConfiguration {
             // Narrow edit commands. Legacy PUT /api/notes/{id} remains denied.
             .requestMatchers(HttpMethod.PUT,
                 "/api/internal/notes/{id}/draft",
-                "/api/internal/notes/{id}/admin/text").permitAll()
+                "/api/internal/notes/{id}/admin/text",
+                "/api/internal/notes/{id}/admin/indicators",
+                "/api/internal/notes/{id}/admin/approved-metadata").permitAll()
             .requestMatchers(HttpMethod.DELETE, "/api/notes/{id}").permitAll()
             .requestMatchers(HttpMethod.POST,
                 "/api/notes/{id}/start-review", "/api/notes/{id}/return",
