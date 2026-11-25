@@ -42,6 +42,15 @@ public class DashboardWiring {
         return new io.github.waleed875.memo.modules.dashboard.application.DashboardPerformanceService(reader);
     }
 
+    @Bean
+    io.github.waleed875.memo.modules.dashboard.application.DashboardActivityService
+        dashboardActivityService(
+            io.github.waleed875.memo.modules.dashboard.application.DashboardActivityReader reader
+        ) {
+        return new io.github.waleed875.memo.modules.dashboard.application.DashboardActivityService(
+            reader, java.time.Clock.system(java.time.ZoneId.of("Asia/Damascus")));
+    }
+
     @Bean DashboardLookupsService dashboardLookupsService(DashboardLookupsReader reader) {
         return new DashboardLookupsService(reader);
     }
