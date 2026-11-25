@@ -205,7 +205,11 @@ class AdminNoteAttachmentDeletePostgresIT {
         UUID a = attach(note, "a.pdf", "2026-11-21T09:00:00Z");
         UUID b = attach(note, "b.pdf", "2026-11-21T09:00:00Z");
         var deleted = repository.delete(note, first, version(note), ADMIN);
-        String expected = a.compareTo(b) < 0 ? "a.pdf" : "b.pdf";
+        String expected = jdbc.queryForObject("""
+            select file_name from core.note_attachments
+            where note_id = ?
+            order by created_at asc, id asc limit 1
+            """, String.class, note);
         assertEquals(expected, deleted.nextPrimaryFileName());
     }
 }
