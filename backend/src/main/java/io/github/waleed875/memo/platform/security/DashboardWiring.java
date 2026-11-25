@@ -67,6 +67,22 @@ public class DashboardWiring {
         return new io.github.waleed875.memo.modules.dashboard.application.DashboardCompanyMetricsService(reader);
     }
 
+    @Bean
+    io.github.waleed875.memo.modules.dashboard.application.DashboardUnifiedService
+        dashboardUnifiedService(
+            io.github.waleed875.memo.modules.dashboard.application.DashboardSummaryReader summary,
+            io.github.waleed875.memo.modules.dashboard.application.DashboardDistributionsReader distributions,
+            io.github.waleed875.memo.modules.dashboard.application.DashboardQualityReader quality,
+            io.github.waleed875.memo.modules.dashboard.application.DashboardPerformanceReader performance,
+            io.github.waleed875.memo.modules.dashboard.application.DashboardActivityReader activity,
+            io.github.waleed875.memo.modules.dashboard.application.DashboardFlowReader flow,
+            io.github.waleed875.memo.modules.dashboard.application.DashboardCompanyMetricsReader company
+        ) {
+        return new io.github.waleed875.memo.modules.dashboard.application.DashboardUnifiedService(
+            summary,distributions,quality,performance,activity,flow,company,
+            java.time.Clock.system(java.time.ZoneId.of("Asia/Damascus")));
+    }
+
     @Bean DashboardLookupsService dashboardLookupsService(DashboardLookupsReader reader) {
         return new DashboardLookupsService(reader);
     }
