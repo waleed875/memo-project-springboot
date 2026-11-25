@@ -2,6 +2,7 @@ name: Full-stack Docker preview smoke
 
 on:
   push:
+    branches: [main]
     paths:
       - 'backend/**'
       - 'frontend/**'
