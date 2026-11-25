@@ -1,0 +1,42 @@
+name: Frontend standalone verification
+
+on:
+  push:
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout unified repository
+        uses: actions/checkout@v4
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install pinned dependencies from this repository
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck and build standalone frontend
+        working-directory: frontend
+        run: npm run build
+      - name: Run migrated original React tests
+        working-directory: frontend
+        run: npm test
+      - name: Assert standalone deployment artifacts exist
+        run: |
+          test -s frontend/dist/index.html
+          test -f frontend/Dockerfile
+          test -f frontend/nginx.conf

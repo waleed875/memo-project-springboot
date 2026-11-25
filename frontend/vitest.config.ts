@@ -3,7 +3,7 @@ import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
 const frontendRoot = fileURLToPath(new URL('.', import.meta.url))
-const testRoot = fileURLToPath(new URL('../../../tests/MemoDashboard.Web/Frontend.Tests/', import.meta.url))
+const testRoot = fileURLToPath(new URL('./tests/', import.meta.url))
 
 export default defineConfig({
   plugins: [react()],
