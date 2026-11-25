@@ -45,6 +45,9 @@ public class SecurityConfiguration {
             .requestMatchers(HttpMethod.DELETE, "/api/notes/{id}/source").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/notes", "/api/notes/{id}",
                 "/api/notes/duplicates/check").permitAll()
+            // Explicit stable-ID create command; NOT legacy POST /api/notes.
+            // CSRF still applies and the application service checks live role.
+            .requestMatchers(HttpMethod.POST, "/api/internal/notes").permitAll()
             .requestMatchers(HttpMethod.DELETE, "/api/notes/{id}").permitAll()
             .requestMatchers(HttpMethod.POST,
                 "/api/notes/{id}/start-review", "/api/notes/{id}/return",
