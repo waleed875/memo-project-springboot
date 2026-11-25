@@ -26,6 +26,14 @@ public class DashboardWiring {
         return new io.github.waleed875.memo.modules.dashboard.application.DashboardDistributionsService(reader);
     }
 
+    @Bean
+    io.github.waleed875.memo.modules.dashboard.application.DashboardQualityService
+        dashboardQualityService(
+            io.github.waleed875.memo.modules.dashboard.application.DashboardQualityReader reader
+        ) {
+        return new io.github.waleed875.memo.modules.dashboard.application.DashboardQualityService(reader);
+    }
+
     @Bean DashboardLookupsService dashboardLookupsService(DashboardLookupsReader reader) {
         return new DashboardLookupsService(reader);
     }
