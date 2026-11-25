@@ -1,0 +1,90 @@
+name: Legacy PostgreSQL migration replay
+on:
+  push:
+    paths:
+      - '.github/workflows/legacy-migrations-ci.yml'
+      - 'backend/src/test/resources/legacy-migration-*.sql'
+  pull_request:
+    paths:
+      - '.github/workflows/legacy-migrations-ci.yml'
+      - 'backend/src/test/resources/legacy-migration-*.sql'
+permissions:
+  contents: read
+jobs:
+  replay-and-link-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-bookworm
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test_only_password
+          POSTGRES_DB: memo_legacy_parity
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d memo_legacy_parity"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: test_only_password
+      PGDATABASE: memo_legacy_parity
+    steps:
+      - name: Checkout Spring Boot branch
+        uses: actions/checkout@v4
+      - name: Checkout pinned, read-only original C# migrations
+        uses: actions/checkout@v4
+        with:
+          repository: waleed875/memo_project
+          ref: dd8eb2ba57864eac2371a3addd0b786ccefa2367
+          path: legacy-reference
+          persist-credentials: false
+          sparse-checkout: |
+            Memo_Project_Handover_v2.0.2/02_الكود_المصدري_Source_Code/source/database
+          sparse-checkout-cone-mode: false
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+      - name: Replay exact original 001-070 migrations in order
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          scripts_dir="legacy-reference/Memo_Project_Handover_v2.0.2/02_الكود_المصدري_Source_Code/source/database"
+          test -d "$scripts_dir"
+          for n in $(seq 1 70); do
+            version=$(printf '%03d' "$n")
+            scripts=( "$scripts_dir"/"$version"_*.sql )
+            if (( ${#scripts[@]} != 1 )); then
+              echo "::error::Expected exactly one migration for version $version; found ${#scripts[@]}"
+              exit 1
+            fi
+            echo "::group::Migration $version: ${scripts[0]##*/}"
+            psql -X -v ON_ERROR_STOP=1 -1 -f "${scripts[0]}"
+            echo "::endgroup::"
+          done
+      - name: Test the actual 063 and 070 triggers and link/source parity
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f backend/src/test/resources/legacy-migration-link-parity.sql
+      - name: Verify migration and source contract objects
+        run: |
+          psql -X -v ON_ERROR_STOP=1 <<'SQL'
+          do $checks$
+          begin
+            if to_regclass('core.note_links') is null
+              or to_regclass('core.note_sources') is null
+              or to_regclass('core.note_source_exit_refs') is null
+              or to_regclass('core.v_note_links_compat') is null
+              or to_regclass('system.database_settings') is null
+              or to_regprocedure('core.sync_legacy_note_link_to_source()') is null
+              or to_regprocedure('core.sync_source_ref_to_legacy_note_link()') is null
+            then
+              raise exception 'Required legacy migration objects were not created';
+            end if;
+          end
+          $checks$;
+          SQL
