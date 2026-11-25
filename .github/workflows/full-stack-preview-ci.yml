@@ -28,11 +28,20 @@ jobs:
       POSTGRES_PASSWORD: CIOnly_Ephemeral_Postgres_Password
     steps:
       - uses: actions/checkout@v4
+      - name: Setup Java 21 and Maven cache
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - name: Build backend JAR with cached Maven dependencies
+        run: mvn -B -ntp -f backend/pom.xml -DskipTests package
       - name: Check complete Compose configuration
-        run: docker compose -f deploy/compose.preview.yaml -f deploy/compose.frontend-preview.yaml config --quiet
+        run: docker compose -f deploy/compose.preview.yaml -f deploy/compose.frontend-preview.yaml -f deploy/compose.ci.yaml config --quiet
       - name: Build and start PostgreSQL, Spring Boot and React/Nginx
         run: |
-          docker compose -f deploy/compose.preview.yaml -f deploy/compose.frontend-preview.yaml up --build -d
+          docker compose -f deploy/compose.preview.yaml -f deploy/compose.frontend-preview.yaml -f deploy/compose.ci.yaml up --build -d
       - name: Await real Spring Boot health and browser entrypoint
         shell: bash
         run: |
@@ -47,14 +56,14 @@ jobs:
             sleep 2
           done
           if [[ "$ready" != true ]]; then
-            docker compose -f deploy/compose.preview.yaml -f deploy/compose.frontend-preview.yaml ps
+            docker compose -f deploy/compose.preview.yaml -f deploy/compose.frontend-preview.yaml -f deploy/compose.ci.yaml ps
             exit 1
           fi
       - name: Check migrated DB and reject legacy public dashboard route
         shell: bash
         run: |
           set -euo pipefail
-          version=$(docker compose -f deploy/compose.preview.yaml -f deploy/compose.frontend-preview.yaml exec -T postgres psql -XAt -v ON_ERROR_STOP=1 -U memo_preview -d memodb_preview -c "select database_version from system.database_settings where singleton is true")
+          version=$(docker compose -f deploy/compose.preview.yaml -f deploy/compose.frontend-preview.yaml -f deploy/compose.ci.yaml exec -T postgres psql -XAt -v ON_ERROR_STOP=1 -U memo_preview -d memodb_preview -c "select database_version from system.database_settings where singleton is true")
           test "$version" = '070'
           status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8081/api/dashboard/snapshot)
           test "$status" = 403
@@ -62,7 +71,7 @@ jobs:
           curl --fail --silent http://127.0.0.1:8081/api/admin/csrf | grep -q '"token"'
       - name: Preview diagnostics on failure
         if: failure()
-        run: docker compose -f deploy/compose.preview.yaml -f deploy/compose.frontend-preview.yaml logs --tail=200
+        run: docker compose -f deploy/compose.preview.yaml -f deploy/compose.frontend-preview.yaml -f deploy/compose.ci.yaml logs --tail=200
       - name: Remove disposable preview volumes
         if: always()
-        run: docker compose -f deploy/compose.preview.yaml -f deploy/compose.frontend-preview.yaml down -v --remove-orphans
+        run: docker compose -f deploy/compose.preview.yaml -f deploy/compose.frontend-preview.yaml -f deploy/compose.ci.yaml down -v --remove-orphans

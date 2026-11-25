@@ -1,0 +1,7 @@
+# CI only: build the backend JAR on the runner first, then package that exact JAR.
+# The normal docker compose workflow still builds backend/Dockerfile from sources.
+services:
+  memo-api:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile.prebuilt
