@@ -8,8 +8,8 @@ using System.Text.RegularExpressions;
 var connection = Environment.GetEnvironmentVariable("MEMO_DASHBOARD_PARITY_DB")
     ?? throw new InvalidOperationException("Disposable PostgreSQL connection is required.");
 if(args.Length != 1) throw new ArgumentException("Usage: DashboardDatabaseOracle <output-file>");
-const Guid a = Guid.Parse("e2000000-0000-4000-8000-000000000001");
-const Guid b = Guid.Parse("e2000000-0000-4000-8000-000000000002");
+var a = Guid.Parse("e2000000-0000-4000-8000-000000000001");
+var b = Guid.Parse("e2000000-0000-4000-8000-000000000002");
 var cases = new [] {
     new Case("company-arrival",a,"2026-11-01","2026-11-30",null,"ArrivalDate",null),
     new Case("company-writing",a,"2026-11-01","2026-11-30",null,"WritingDate",null),
