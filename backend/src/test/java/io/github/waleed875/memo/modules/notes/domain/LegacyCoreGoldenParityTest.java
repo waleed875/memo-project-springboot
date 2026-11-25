@@ -87,9 +87,10 @@ class LegacyCoreGoldenParityTest {
         LocalDate writing=date(x.a()),arrival=date(x.b());
         if(writing==null)return "MISSING_WRITING_DATE;-;-";
         long days=ChronoUnit.DAYS.between(writing,arrival);
-        String status=days<0?"INVALID_DATES":days<=5?"ON_TIME":
-            writing.getYear()==arrival.getYear()&&writing.getMonthValue()==arrival.getMonthValue()
-                ?"LATE_SAME_MONTH":"LATE_CROSS_MONTH";
+        String status = DelayCalculator.classify(
+            writing.atStartOfDay(), arrival.atStartOfDay()).name();
+        if ("INVALID_DATE_ORDER".equals(status)) status = "INVALID_DATES";
+        if ("UNKNOWN".equals(status)) status = "MISSING_WRITING_DATE";
         return status+";"+days+";"+Math.max(0,days-5);
     }
     static UUID fieldId(int n) {
