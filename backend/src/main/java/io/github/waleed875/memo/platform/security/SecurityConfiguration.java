@@ -44,6 +44,8 @@ public class SecurityConfiguration {
             .requestMatchers(HttpMethod.GET, "/api/dashboard/lookups").permitAll()
             // Internal scalar-only dashboard diagnostics; never open legacy snapshot.
             .requestMatchers(HttpMethod.GET, "/api/internal/dashboard/summary").permitAll()
+            .requestMatchers(HttpMethod.GET,
+                "/api/internal/dashboard/distributions").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/notes/review-queue").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/notes/{id}/source").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/notes/{id}/source").permitAll()
