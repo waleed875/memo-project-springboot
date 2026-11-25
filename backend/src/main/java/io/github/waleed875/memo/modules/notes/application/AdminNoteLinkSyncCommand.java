@@ -11,9 +11,12 @@ import java.util.UUID;
  * An explicit empty list means clear. Null means invalid command (never clear).
  */
 public record AdminNoteLinkSyncCommand(
-    UUID noteId, LocalDateTime expectedUpdatedAt, List<UUID> relatedNoteIds
+    UUID noteId, LocalDateTime expectedUpdatedAt,
+    List<UUID> expectedRelatedNoteIds, List<UUID> relatedNoteIds
 ) {
     public AdminNoteLinkSyncCommand {
+        expectedRelatedNoteIds = expectedRelatedNoteIds == null ? null
+            : Collections.unmodifiableList(new ArrayList<>(expectedRelatedNoteIds));
         relatedNoteIds = relatedNoteIds == null ? null
             : Collections.unmodifiableList(new ArrayList<>(relatedNoteIds));
     }

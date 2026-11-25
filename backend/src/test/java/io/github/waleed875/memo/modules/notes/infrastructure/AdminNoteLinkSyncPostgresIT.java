@@ -69,8 +69,16 @@ class AdminNoteLinkSyncPostgresIT {
     LocalDateTime version(UUID id) {
         return jdbc.queryForObject("select updated_at from core.notes where id=?",LocalDateTime.class,id);
     }
+    java.util.List<UUID> current(UUID note) {
+        return jdbc.query("""
+            select case when source_note_id = ? then related_note_id
+                        else source_note_id end
+              from core.note_links where source_note_id = ? or related_note_id = ?
+              order by 1
+            """, (rs, i) -> rs.getObject(1, UUID.class), note, note, note);
+    }
     AdminNoteLinkSyncCommand cmd(UUID note,UUID... targets) {
-        return new AdminNoteLinkSyncCommand(note,version(note),List.of(targets));
+        return new AdminNoteLinkSyncCommand(note,version(note),current(note),List.of(targets));
     }
     int links(UUID note) {
         return jdbc.queryForObject("select count(*) from core.note_links where source_note_id=? or related_note_id=?",Integer.class,note,note);
@@ -103,7 +111,7 @@ class AdminNoteLinkSyncPostgresIT {
     @Test void auditRollbackAndStaleVersionPreventPartialLinks() {
         UUID n=memo(COMPANY,ENTRY,false),target=memo(COMPANY,EXIT,false);
         assertThrows(NoteDraftEditConflict.class,()->repository.sync(
-            new AdminNoteLinkSyncCommand(n,LocalDateTime.parse("2020-01-01T00:00:00"),List.of(target)),USER));
+            new AdminNoteLinkSyncCommand(n,LocalDateTime.parse("2020-01-01T00:00:00"),current(n),List.of(target)),USER));
         LocalDateTime before=version(n);
         jdbc.execute("alter table audit.logs add constraint reject_link_it check (action_type <> 'LINK_NOTES')");
         assertThrows(Exception.class,()->repository.sync(cmd(n,target),USER));
@@ -112,8 +120,8 @@ class AdminNoteLinkSyncPostgresIT {
     @Test void twoStaleConcurrentWritersCannotBothWin() throws Exception {
         UUID n=memo(COMPANY,ENTRY,false),a=memo(COMPANY,EXIT,false),b=memo(COMPANY,EXIT,false);
         LocalDateTime version=version(n);
-        var ca=new AdminNoteLinkSyncCommand(n,version,List.of(a));
-        var cb=new AdminNoteLinkSyncCommand(n,version,List.of(b));
+        var ca=new AdminNoteLinkSyncCommand(n,version,List.of(),List.of(a));
+        var cb=new AdminNoteLinkSyncCommand(n,version,List.of(),List.of(b));
         ExecutorService pool=Executors.newFixedThreadPool(2);
         CountDownLatch ready=new CountDownLatch(2),go=new CountDownLatch(1);
         AtomicInteger successes=new AtomicInteger(),conflicts=new AtomicInteger();

@@ -92,8 +92,19 @@ class LegacyFullSchemaNoteLinkSyncTest {
         return jdbc.queryForObject(
             "select updated_at from core.notes where id = ?", LocalDateTime.class, noteId);
     }
+    private List<UUID> currentLinks(UUID noteId) {
+        return jdbc.query("""
+            select case when source_note_id = ? then related_note_id
+                        else source_note_id end
+            from core.note_links
+            where source_note_id = ? or related_note_id = ?
+            order by 1
+            """, (rs, index) -> rs.getObject(1, UUID.class),
+            noteId, noteId, noteId);
+    }
     private AdminNoteLinkSyncCommand command(UUID noteId, UUID... exits) {
-        return new AdminNoteLinkSyncCommand(noteId, revision(noteId), List.of(exits));
+        return new AdminNoteLinkSyncCommand(
+            noteId, revision(noteId), currentLinks(noteId), List.of(exits));
     }
     private int linkCount(UUID entry, UUID exit) {
         return jdbc.queryForObject("""
@@ -213,8 +224,8 @@ class LegacyFullSchemaNoteLinkSyncTest {
     void twoJavaWritersWithSameRevisionCannotBothCommit() throws Exception {
         UUID e = entry(), a = exit(), b = exit();
         LocalDateTime version = revision(e);
-        var first = new AdminNoteLinkSyncCommand(e, version, List.of(a));
-        var second = new AdminNoteLinkSyncCommand(e, version, List.of(b));
+        var first = new AdminNoteLinkSyncCommand(e, version, List.of(), List.of(a));
+        var second = new AdminNoteLinkSyncCommand(e, version, List.of(), List.of(b));
         ExecutorService pool = Executors.newFixedThreadPool(2);
         CountDownLatch ready = new CountDownLatch(2), start = new CountDownLatch(1);
         AtomicInteger accepted = new AtomicInteger(), conflicts = new AtomicInteger();
