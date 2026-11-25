@@ -1,6 +1,8 @@
 package io.github.waleed875.memo.modules.dashboard.application;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.List;
 import java.util.UUID;
 
@@ -30,7 +32,19 @@ public record DashboardActivitySnapshot(
         UUID id, String noteNumber, String companyName, String factoryName,
         String productionLineName, String noteTypeName,
         String status, String statusLabel, LocalDate writingDate,
-        LocalDate arrivalAt, boolean isLate
-    ) {}
+        LocalDate arrivalAt, boolean isLate,
+        @JsonIgnore LocalDateTime arrivalTimestamp
+    ) {
+        public RecentNoteItem(
+            UUID id, String noteNumber, String companyName, String factoryName,
+            String productionLineName, String noteTypeName,
+            String status, String statusLabel, LocalDate writingDate,
+            LocalDate arrivalAt, boolean isLate
+        ) {
+            this(id,noteNumber,companyName,factoryName,productionLineName,
+                noteTypeName,status,statusLabel,writingDate,arrivalAt,isLate,
+                arrivalAt == null ? null : arrivalAt.atStartOfDay());
+        }
+    }
     public record BacklogAgeItem(String code, String label, long value) {}
 }

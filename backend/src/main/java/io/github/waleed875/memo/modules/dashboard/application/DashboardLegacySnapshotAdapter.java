@@ -51,7 +51,8 @@ public final class DashboardLegacySnapshotAdapter {
             s.duplicateIncidentCount(),s.duplicateAffectedNotes(),
             s.nonDuplicateNotes(),s.lateTotal(),s.lateSameMonth(),
             s.lateCrossMonth(),s.onTime(),s.avgLateDays(),s.maxLateDays(),
-            midnight(s.latestArrivalDate()));
+            s.latestArrivalTimestamp() != null
+                ? s.latestArrivalTimestamp() : midnight(s.latestArrivalDate()));
     }
 
     static DashboardLegacySnapshot.EffectiveFilters effective(DashboardSummaryCriteria f) {
@@ -73,7 +74,8 @@ public final class DashboardLegacySnapshotAdapter {
         return new DashboardLegacySnapshot.RecentNote(
             n.id(),n.noteNumber(),n.companyName(),n.factoryName(),
             n.productionLineName(),n.noteTypeName(),n.status(),
-            n.statusLabel(),midnight(n.writingDate()),midnight(n.arrivalAt()),
+            n.statusLabel(),midnight(n.writingDate()),
+            n.arrivalTimestamp() != null ? n.arrivalTimestamp() : midnight(n.arrivalAt()),
             n.isLate());
     }
 

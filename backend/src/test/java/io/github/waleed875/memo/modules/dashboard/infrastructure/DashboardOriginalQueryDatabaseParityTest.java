@@ -7,6 +7,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -79,6 +81,8 @@ class DashboardOriginalQueryDatabaseParityTest {
             String root="$."+c.name();
             compareSubset(mapper,expected.path("summary"),core.summary(),root+".summary",
                 Set.of("latestArrivalDate"));
+            assertDateTime(expected.path("summary").path("latestArrivalDate"),
+                core.summary().latestArrivalTimestamp(),root+".summary.latestArrivalDate");
             compareSubset(mapper,expected.path("sla"),core.sla(),root+".sla",Set.of());
             compareArray(mapper,expected.path("companies"),d.companies(),
                 root+".companies",Set.of());
@@ -98,6 +102,16 @@ class DashboardOriginalQueryDatabaseParityTest {
                 root+".dataCompleteness",Set.of());
             compareArray(mapper,expected.path("recentNotes"),a.recentNotes(),
                 root+".recentNotes",Set.of("writingDate","arrivalAt"));
+            JsonNode originalRecent=expected.path("recentNotes");
+            for(int i=0;i<a.recentNotes().size();i++) {
+                var note=a.recentNotes().get(i);
+                String notePath=root+".recentNotes["+i+"]";
+                assertDateTime(originalRecent.get(i).path("arrivalAt"),
+                    note.arrivalTimestamp(),notePath+".arrivalAt");
+                assertDateTime(originalRecent.get(i).path("writingDate"),
+                    note.writingDate()==null?null:note.writingDate().atStartOfDay(),
+                    notePath+".writingDate");
+            }
             compareSubset(mapper,expected.path("fieldQuality"),quality.fieldQuality(),
                 root+".fieldQuality",Set.of());
             compareArray(mapper,expected.path("qualityByCompany"),quality.qualityByCompany(),
@@ -113,6 +127,20 @@ class DashboardOriginalQueryDatabaseParityTest {
                 performance.performanceByFactory(),root+".performanceByFactory",Set.of());
             compareArray(mapper,expected.path("performanceByLine"),
                 performance.performanceByLine(),root+".performanceByLine",Set.of());
+        }
+    }
+
+    private static final DateTimeFormatter DOTNET_LOCAL =
+        DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+
+    private static void assertDateTime(
+        JsonNode expected,LocalDateTime actual,String path
+    ) {
+        if(expected.isNull()) {
+            assertNull(actual,path);
+        } else {
+            assertNotNull(actual,path);
+            assertEquals(expected.asText(),DOTNET_LOCAL.format(actual),path);
         }
     }
 
