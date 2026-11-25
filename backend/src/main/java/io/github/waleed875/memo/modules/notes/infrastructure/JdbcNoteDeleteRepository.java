@@ -25,6 +25,8 @@ public class JdbcNoteDeleteRepository implements NoteDeleteRepository {
     @Override
     @Transactional
     public void delete(UUID noteId, UUID actorId, LocalDateTime expectedUpdatedAt) {
+        // Global link lock before note row lock; deletion removes links.
+        NoteLinkWriteLock.acquire(jdbc);
         List<String> details = jdbc.query("""
             select note_number from core.notes
             where id = ? and is_deleted = false and updated_at = ?

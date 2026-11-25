@@ -294,7 +294,10 @@ public class JdbcNoteCreator implements NoteCreator {
         UUID operationId = command.operationId();
         UUID noteId = command.noteId();
 
-        // Same operation-ID lock and acquisition order as original C#.
+        // Shared link lock is taken before any per-operation/catalog locks.
+        // This command may insert note_links later in the transaction.
+        NoteLinkWriteLock.acquire(jdbc);
+        // Retain the original operation-ID lock format for idempotency.
         lock(operationId.toString().replace("-", ""), 571);
         ExistingOperation existing = existingOperation(operationId, noteId);
         if (existing != null) {

@@ -151,7 +151,8 @@ public class JdbcNoteSourceStore implements NoteSourceStore {
     @Override
     @Transactional
     public void save(UUID noteId, UUID actor, boolean ownOnly, NoteSourceDraft draft) {
-        // This row lock serializes all source updates on the same note.
+        // Must precede note FOR UPDATE and source-trigger link writes.
+        NoteLinkWriteLock.acquire(jdbc);
         NoteScope scope = note(noteId, actor, ownOnly, true);
         if (!"ENTRY".equals(scope.type())) {
             throw new NoteCreateConflict("يمكن تعيين مصادر لمذكرات الإدخال فقط.");
@@ -231,6 +232,7 @@ public class JdbcNoteSourceStore implements NoteSourceStore {
     @Override
     @Transactional
     public void remove(UUID noteId, UUID actor, boolean ownOnly) {
+        NoteLinkWriteLock.acquire(jdbc);
         NoteScope scope = note(noteId, actor, ownOnly, true);
         if (!"ENTRY".equals(scope.type())) {
             throw new NoteCreateConflict("يمكن إزالة مصادر مذكرات الإدخال فقط.");
