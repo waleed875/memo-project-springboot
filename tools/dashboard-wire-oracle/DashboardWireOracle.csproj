@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../legacy-reference/Memo_Project_Handover_v2.0.2/02_الكود_المصدري_Source_Code/source/src/MemoDashboard.Web/Backend/Models/DashboardDtos.cs" Link="Original/DashboardDtos.cs" />
+    <Compile Include="../../legacy-reference/Memo_Project_Handover_v2.0.2/02_الكود_المصدري_Source_Code/source/src/MemoDashboard.Web/Backend/Models/DashboardContractDtos.cs" Link="Original/DashboardContractDtos.cs" />
+    <Compile Include="../../legacy-reference/Memo_Project_Handover_v2.0.2/02_الكود_المصدري_Source_Code/source/src/MemoDashboard.Web/Backend/Models/CompanyMetrics.cs" Link="Original/CompanyMetrics.cs" />
+    <Compile Include="../../legacy-reference/Memo_Project_Handover_v2.0.2/02_الكود_المصدري_Source_Code/source/src/MemoDashboard.Web/Backend/Services/DashboardContractBuilder.cs" Link="Original/DashboardContractBuilder.cs" />
+  </ItemGroup>
+</Project>
