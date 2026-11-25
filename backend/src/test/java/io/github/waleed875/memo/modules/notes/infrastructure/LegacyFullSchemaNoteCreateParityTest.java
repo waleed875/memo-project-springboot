@@ -6,6 +6,11 @@ import io.github.waleed875.memo.modules.identity.application.UserProfile;
 import io.github.waleed875.memo.modules.notes.application.NoteCreateCommand;
 import io.github.waleed875.memo.modules.notes.application.NoteCreateConflict;
 import io.github.waleed875.memo.modules.notes.application.NoteCreateService;
+import io.github.waleed875.memo.modules.notes.application.NoteDuplicateClassification;
+import io.github.waleed875.memo.modules.notes.application.NoteDuplicateResolution;
+import io.github.waleed875.memo.modules.notes.application.NoteDuplicateDecisionCommand;
+import io.github.waleed875.memo.modules.notes.application.NoteDuplicateDecisionRepository;
+import io.github.waleed875.memo.modules.notes.application.NoteDuplicateDecisionService;
 import io.github.waleed875.memo.modules.notes.application.NoteCreator;
 import io.github.waleed875.memo.modules.notes.domain.IndicatorValue;
 import io.github.waleed875.memo.modules.notes.domain.NoteAttachment;
@@ -46,6 +51,7 @@ class LegacyFullSchemaNoteCreateParityTest {
 
     private JdbcTemplate jdbc;
     private NoteCreateService service;
+    private NoteDuplicateDecisionService decisions;
     private UUID user, company, entryType, exitType;
     private UserProfile actor;
 
@@ -65,6 +71,15 @@ class LegacyFullSchemaNoteCreateParityTest {
         proxy.afterPropertiesSet();
         service = new NoteCreateService((NoteCreator) proxy.getObject(), () -> {},
             Clock.fixed(Instant.parse("2026-11-25T10:00:00Z"), ZoneOffset.UTC));
+        var decisionProxy = new TransactionProxyFactoryBean();
+        decisionProxy.setTarget(new JdbcNoteDuplicateDecisionRepository(
+            jdbc, new NamedParameterJdbcTemplate(dataSource)));
+        decisionProxy.setTransactionManager(new JdbcTransactionManager(dataSource));
+        decisionProxy.setTransactionAttributeSource(new AnnotationTransactionAttributeSource());
+        decisionProxy.setProxyInterfaces(new Class<?>[]{NoteDuplicateDecisionRepository.class});
+        decisionProxy.afterPropertiesSet();
+        decisions = new NoteDuplicateDecisionService(
+            (NoteDuplicateDecisionRepository)decisionProxy.getObject(), () -> {});
 
         UUID role = jdbc.queryForObject(
             "select id from auth.roles where code = 'DATA_ENTRY'", UUID.class);
@@ -288,5 +303,148 @@ class LegacyFullSchemaNoteCreateParityTest {
         assertEquals(0, physicalLinks(id));
         assertEquals(0, sourceReferences(id));
         assertEquals(0, reservations(c.operationId()));
+    }
+
+    private NoteCreateCommand duplicateCandidate(
+        NoteCreateCommand original, UUID matchedId
+    ) {
+        return new NoteCreateCommand(UUID.randomUUID(), UUID.randomUUID(),
+            original.candidate(), "distinct duplicate payload",
+            new NoteAttachment("duplicate.pdf", PDF), List.of(),
+            new NoteDuplicateResolution(
+                NoteDuplicateClassification.COMPANY_DUPLICATE_NUMBER, matchedId));
+    }
+
+    private NoteDuplicateDecisionCommand decision(
+        NoteCreateCommand original, NoteDuplicateClassification kind, UUID matchedId
+    ) {
+        var c = original.candidate();
+        return new NoteDuplicateDecisionCommand(
+            kind, matchedId, c.noteNumber(), c.companyId(), c.noteTypeId(),
+            c.factoryId(), c.productionLineId(), c.writingDate(), false);
+    }
+
+    private int incidents(UUID noteId, String classification) {
+        return jdbc.queryForObject("""
+            select count(*) from core.duplicate_incidents
+            where matched_note_id=? and classification=?
+            """, Integer.class, noteId, classification);
+    }
+
+    @Test
+    void explicitCompanyDuplicateCreatesSecondMemoWithOneIncidentAndStableReplay() {
+        var original = command(true, false, List.of(), List.of());
+        service.create(actor, original);
+        var duplicate = duplicateCandidate(original, original.noteId());
+        assertEquals(duplicate.noteId(), service.create(actor, duplicate));
+        assertEquals(1, count("core.notes", "id", duplicate.noteId()));
+        assertEquals(1, count("core.note_attachments", "note_id", duplicate.noteId()));
+        assertEquals(1, count("core.note_review_history", "note_id", duplicate.noteId()));
+        assertEquals(1, incidents(original.noteId(), "COMPANY_DUPLICATE_NUMBER"));
+        assertEquals(1, jdbc.queryForObject("""
+            select count(*) from core.duplicate_incidents
+             where created_note_id=?
+               and matched_note_id=? and classification='COMPANY_DUPLICATE_NUMBER'
+            """, Integer.class, duplicate.noteId(), original.noteId()));
+        assertEquals(1, jdbc.queryForObject("""
+            select count(*) from audit.logs
+            where record_id=? and action_type='COMPANY_DUPLICATE_NUMBER'
+            """, Integer.class, duplicate.noteId()));
+
+        assertEquals(duplicate.noteId(), service.create(actor, duplicate));
+        assertEquals(1, incidents(original.noteId(), "COMPANY_DUPLICATE_NUMBER"));
+        assertEquals(1, count("core.note_attachments", "note_id", duplicate.noteId()));
+
+        var changedDecision = new NoteCreateCommand(duplicate.operationId(),
+            duplicate.noteId(), duplicate.candidate(), duplicate.notes(),
+            duplicate.attachment(), duplicate.relatedNoteIds(),
+            new NoteDuplicateResolution(NoteDuplicateClassification.COMPANY_DUPLICATE_NUMBER,
+                UUID.randomUUID()));
+        assertThrows(NoteCreateConflict.class, () -> service.create(actor, changedDecision));
+        assertEquals(1, incidents(original.noteId(), "COMPANY_DUPLICATE_NUMBER"));
+    }
+
+    @Test
+    void resendAndEntryAttemptClassificationsDoNotCreateNotes() {
+        var original = command(true, false, List.of(), List.of());
+        service.create(actor, original);
+        int before = jdbc.queryForObject(
+            "select count(*) from core.notes where company_id=?", Integer.class, company);
+        decisions.record(actor, decision(
+            original, NoteDuplicateClassification.COMPANY_RESEND, original.noteId()));
+        assertEquals(1, incidents(original.noteId(), "COMPANY_RESEND"));
+        assertEquals(1, jdbc.queryForObject("""
+            select count(*) from audit.logs
+            where record_id=? and action_type='COMPANY_RESEND'
+            """, Integer.class, original.noteId()));
+        decisions.record(actor, decision(original,
+            NoteDuplicateClassification.DATA_ENTRY_DUPLICATE_ATTEMPT, original.noteId()));
+        assertEquals(1, jdbc.queryForObject("""
+            select count(*) from audit.logs
+            where record_id=? and action_type='DATA_ENTRY_DUPLICATE_ATTEMPT'
+              and new_value->>'matchedNoteId'=?
+            """, Integer.class, original.noteId(), original.noteId().toString()));
+        assertEquals(0, incidents(original.noteId(), "DATA_ENTRY_DUPLICATE_ATTEMPT"));
+        assertEquals(before, jdbc.queryForObject(
+            "select count(*) from core.notes where company_id=?", Integer.class, company));
+    }
+
+    @Test
+    void staleMatchedNoteAndUnclassifiedDuplicatesAreRejectedWithoutWrites() {
+        var original = command(true, false, List.of(), List.of());
+        service.create(actor, original);
+        var raw = new NoteCreateCommand(UUID.randomUUID(), UUID.randomUUID(),
+            original.candidate(), "no decision", null, List.of());
+        assertThrows(NoteCreateConflict.class, () -> service.create(actor, raw));
+        assertNoCreatedSideEffects(raw);
+
+        var stale = duplicateCandidate(original, UUID.randomUUID());
+        assertThrows(NoteCreateConflict.class, () -> service.create(actor, stale));
+        assertNoCreatedSideEffects(stale);
+        assertThrows(NoteCreateConflict.class, () -> decisions.record(actor,
+            decision(original, NoteDuplicateClassification.COMPANY_RESEND,
+                UUID.randomUUID())));
+        assertEquals(0, incidents(original.noteId(), "COMPANY_RESEND"));
+    }
+
+    @Test
+    void rejectedDuplicateIncidentRollsBackNewNoteMediaAuditAndOperationReservation() {
+        var original = command(true, false, List.of(), List.of());
+        service.create(actor, original);
+        var candidate = duplicateCandidate(original, original.noteId());
+        jdbc.execute("""
+            alter table core.duplicate_incidents add constraint ck_duplicate_forced_failure
+            check (classification <> 'COMPANY_DUPLICATE_NUMBER') not valid
+            """);
+        try {
+            assertThrows(Exception.class, () -> service.create(actor, candidate));
+            assertNoCreatedSideEffects(candidate);
+            assertEquals(0, incidents(original.noteId(), "COMPANY_DUPLICATE_NUMBER"));
+        } finally {
+            jdbc.execute("""
+                alter table core.duplicate_incidents
+                drop constraint if exists ck_duplicate_forced_failure
+                """);
+        }
+    }
+
+    @Test
+    void resendAuditFailureRollsBackIncident() {
+        var original = command(true, false, List.of(), List.of());
+        service.create(actor, original);
+        jdbc.execute("""
+            alter table audit.logs add constraint ck_resend_forced_failure
+            check (action_type <> 'COMPANY_RESEND') not valid
+            """);
+        try {
+            assertThrows(Exception.class, () -> decisions.record(actor,
+                decision(original, NoteDuplicateClassification.COMPANY_RESEND,
+                    original.noteId())));
+            assertEquals(0, incidents(original.noteId(), "COMPANY_RESEND"));
+        } finally {
+            jdbc.execute("""
+                alter table audit.logs drop constraint if exists ck_resend_forced_failure
+                """);
+        }
     }
 }
