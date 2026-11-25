@@ -5,18 +5,20 @@ on:
       - 'backend/**'
       - 'tools/dashboard-wire-oracle/**'
       - 'tools/dashboard-react-consumer/**'
+      - 'tools/dashboard-browser-e2e/**'
       - '.github/workflows/dashboard-wire-parity-ci.yml'
   pull_request:
     paths:
       - 'backend/**'
       - 'tools/dashboard-wire-oracle/**'
       - 'tools/dashboard-react-consumer/**'
+      - 'tools/dashboard-browser-e2e/**'
       - '.github/workflows/dashboard-wire-parity-ci.yml'
 permissions:
   contents: read
 jobs:
   dashboard-wire-parity:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Checkout independent Spring Boot implementation
@@ -84,3 +86,27 @@ jobs:
           MEMO_DASHBOARD_EXPORT_DIR: ${{ runner.temp }}/java-dashboard-snapshots
           TZ: Asia/Damascus
         run: npm test -- DashboardSpringConsumer.test.tsx
+      - name: Install pinned Playwright browser test runner
+        run: npm install --prefix tools/dashboard-browser-e2e --no-audit --no-fund --ignore-scripts
+      - name: Install Chromium and runtime dependencies
+        run: ./tools/dashboard-browser-e2e/node_modules/.bin/playwright install --with-deps chromium
+      - name: Mount temporary browser-only dashboard entrypoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          frontend='legacy-reference/Memo_Project_Handover_v2.0.2/02_الكود_المصدري_Source_Code/source/src/MemoDashboard.Web/Frontend'
+          cp tools/dashboard-browser-e2e/harness/dashboard-browser-parity.html "$frontend/dashboard-browser-parity.html"
+          cp tools/dashboard-browser-e2e/harness/dashboard-browser-parity.tsx "$frontend/dashboard-browser-parity.tsx"
+      - name: Run Chromium dashboard browser tests against Spring snapshots
+        env:
+          MEMO_DASHBOARD_EXPORT_DIR: ${{ runner.temp }}/java-dashboard-snapshots
+          TZ: Asia/Damascus
+        run: ./tools/dashboard-browser-e2e/node_modules/.bin/playwright test --config tools/dashboard-browser-e2e/playwright.config.mjs
+      - name: Upload browser failures (screenshots, traces and JUnit)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-chromium-parity-artifacts
+          path: tools/dashboard-browser-e2e/results/
+          if-no-files-found: ignore
+          retention-days: 7
