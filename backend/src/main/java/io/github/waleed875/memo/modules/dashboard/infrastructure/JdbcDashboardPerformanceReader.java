@@ -143,13 +143,27 @@ public class JdbcDashboardPerformanceReader implements DashboardPerformanceReade
         for (var row : jdbc.query(base, params, (rs, i) -> new GroupRow(
             rs.getString("kind"), item(rs)))) {
             switch (row.kind()) {
-                case "company" -> companies.add(row.item());
+                case "company" -> companies.add(legacyCompanyPerformance(row.item()));
                 case "factory" -> { if (factories.size() < 10) factories.add(row.item()); }
                 case "line" -> { if (lines.size() < 10) lines.add(row.item()); }
                 default -> throw new IllegalStateException("Unknown performance dimension");
             }
         }
         return new DashboardPerformanceBreakdown(companies, factories, lines, criteria);
+    }
+
+    /**
+     * The pinned original C# SnapshotSql explicitly selects four zero
+     * quality columns in the company timeliness result. True company
+     * quality remains available in the dedicated qualityByCompany section.
+     */
+    private static DashboardPerformanceItem legacyCompanyPerformance(
+        DashboardPerformanceItem item
+    ) {
+        return new DashboardPerformanceItem(
+            item.dimensionId(),item.label(),item.totalNotes(),
+            item.eligibleCount(),item.lateCount(),item.onTimeCount(),
+            0,0,0,0,item.lateRate(),null);
     }
 
     private record GroupRow(String kind, DashboardPerformanceItem item) {}

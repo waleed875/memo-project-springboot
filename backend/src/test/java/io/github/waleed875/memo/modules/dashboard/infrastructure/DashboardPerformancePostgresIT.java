@@ -104,7 +104,7 @@ class DashboardPerformancePostgresIT {
         return new DashboardSummaryCriteria(from,to,dateBasis,null,null,null,null,status,null);
     }
 
-    @Test void sameRevisionCombinesMeasuredQualityAndTimelinessWithoutMixingDenominators() {
+    @Test void companyTimeKpisKeepLegacyZeroQualityWhileFactoryLineRemainMeasured() {
         var result=reader.read(admin,filters("ArrivalDate",null,null,null));
         var c=result.timelinessByCompany().stream()
             .filter(x->x.dimensionId().equals(company)).findFirst().orElseThrow();
@@ -113,11 +113,11 @@ class DashboardPerformancePostgresIT {
         assertEquals(1,c.lateCount());
         assertEquals(1,c.onTimeCount());
         assertEquals(50.0,c.lateRate());
-        assertEquals(3,c.sampleCount());
-        assertEquals(1,c.correctCount());
-        assertEquals(1,c.errorCount());
-        assertEquals(2,c.qualityEligibleCount());
-        assertEquals(50.0,c.accuracyRate());
+        assertEquals(0,c.sampleCount());
+        assertEquals(0,c.correctCount());
+        assertEquals(0,c.errorCount());
+        assertEquals(0,c.qualityEligibleCount());
+        assertNull(c.accuracyRate());
         assertEquals(factory,result.performanceByFactory().getFirst().dimensionId());
         assertEquals(line,result.performanceByLine().getFirst().dimensionId());
         assertEquals(3,result.performanceByFactory().getFirst().totalNotes());
