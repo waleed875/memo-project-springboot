@@ -15,16 +15,25 @@ public record NoteCreateCommand(
     NoteSaveCandidate candidate,
     String notes,
     NoteAttachment attachment,
-    List<UUID> relatedNoteIds
+    List<UUID> relatedNoteIds,
+    NoteDuplicateResolution resolution
 ) {
     public NoteCreateCommand {
         relatedNoteIds = relatedNoteIds == null ? List.of() : List.copyOf(relatedNoteIds);
     }
 
-    /** Backward compatible four-argument constructor for the original core tests. */
+    /** Existing six-argument commands keep identical default semantics. */
+    public NoteCreateCommand(
+        UUID operationId, UUID noteId, NoteSaveCandidate candidate, String notes,
+        NoteAttachment attachment, List<UUID> relatedNoteIds
+    ) {
+        this(operationId, noteId, candidate, notes, attachment, relatedNoteIds, null);
+    }
+
+    /** Backward-compatible original four-argument command. */
     public NoteCreateCommand(
         UUID operationId, UUID noteId, NoteSaveCandidate candidate, String notes
     ) {
-        this(operationId, noteId, candidate, notes, null, List.of());
+        this(operationId, noteId, candidate, notes, null, List.of(), null);
     }
 }
