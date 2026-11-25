@@ -68,7 +68,8 @@ public class JdbcNoteDraftEditRepository implements NoteDraftEditRepository {
 
         // Verify that the submitted link snapshot still matches the current
         // persisted set. Source-side trigger updates need not touch notes.updated_at.
-        List<UUID> originalLinks = counterpartIds(command.noteId());
+        List<UUID> originalLinks = command.synchronizesLinks()
+            ? counterpartIds(command.noteId()) : List.of();
         if (command.synchronizesLinks()
             && !new HashSet<>(originalLinks).equals(
                 new HashSet<>(command.expectedRelatedNoteIds()))) {
