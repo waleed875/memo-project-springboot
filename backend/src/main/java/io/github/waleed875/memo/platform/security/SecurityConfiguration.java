@@ -52,6 +52,8 @@ public class SecurityConfiguration {
                 "/api/internal/dashboard/performance").permitAll()
             .requestMatchers(HttpMethod.GET,
                 "/api/internal/dashboard/activity").permitAll()
+            .requestMatchers(HttpMethod.GET,
+                "/api/internal/dashboard/flow").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/notes/review-queue").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/notes/{id}/source").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/notes/{id}/source").permitAll()
