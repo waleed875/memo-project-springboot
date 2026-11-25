@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
  * No attachment-ID-only retrieval is allowed.
  */
 @Repository
-public final class JdbcNoteAttachmentDownloadReader implements NoteAttachmentDownloadReader {
+public class JdbcNoteAttachmentDownloadReader implements NoteAttachmentDownloadReader {
     private final JdbcTemplate jdbc;
     public JdbcNoteAttachmentDownloadReader(JdbcTemplate jdbc) { this.jdbc = jdbc; }
     @Override @Transactional(readOnly = true)
