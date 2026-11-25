@@ -54,6 +54,15 @@ public class SecurityConfiguration {
                 "/api/internal/notes/{id}/admin/text",
                 "/api/internal/notes/{id}/admin/indicators",
                 "/api/internal/notes/{id}/admin/approved-metadata").permitAll()
+            // Internal note media: downloads are authorized by active DB role and ownership.
+            .requestMatchers(HttpMethod.GET,
+                "/api/internal/notes/{id}/attachments/{attachmentId}").permitAll()
+            .requestMatchers(HttpMethod.POST,
+                "/api/internal/notes/{id}/admin/attachments").permitAll()
+            .requestMatchers(HttpMethod.DELETE,
+                "/api/internal/notes/{id}/admin/attachments/{attachmentId}").permitAll()
+            .requestMatchers(HttpMethod.PUT,
+                "/api/internal/notes/{id}/admin/links").permitAll()
             .requestMatchers(HttpMethod.DELETE, "/api/notes/{id}").permitAll()
             .requestMatchers(HttpMethod.POST,
                 "/api/notes/{id}/start-review", "/api/notes/{id}/return",
