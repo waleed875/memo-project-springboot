@@ -1,0 +1,73 @@
+name: Independent preview database migration replay
+
+on:
+  push:
+    paths:
+      - 'database/migrations/**'
+      - 'deploy/init-preview-database.sh'
+      - 'deploy/compose.preview.yaml'
+      - '.github/workflows/preview-db-ci.yml'
+  pull_request:
+    paths:
+      - 'database/migrations/**'
+      - 'deploy/init-preview-database.sh'
+      - 'deploy/compose.preview.yaml'
+      - '.github/workflows/preview-db-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  fresh-schema:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate all 70 original migration filenames
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for n in $(seq 1 70); do
+            files=(database/migrations/$(printf '%03d' "$n")_*.sql)
+            test "${#files[@]}" -eq 1
+          done
+          test "$(find database/migrations -maxdepth 1 -type f -name '[0-9][0-9][0-9]_*.sql' | wc -l)" -eq 70
+      - name: Start fresh isolated PostgreSQL (no original checkout)
+        env:
+          POSTGRES_PASSWORD: CI_Only_Not_A_Production_Secret
+        run: |
+          docker compose -f deploy/compose.preview.yaml up -d postgres
+          for i in $(seq 1 90); do
+            if docker compose -f deploy/compose.preview.yaml exec -T postgres psql -XAt -U memo_preview -d memodb_preview -c "select database_version from system.database_settings where singleton is true" 2>/dev/null | grep -qx 070; then exit 0; fi
+            sleep 2
+          done
+          docker compose -f deploy/compose.preview.yaml logs postgres
+          exit 1
+      - name: Assert schema, identities, and reporting functions exist
+        env:
+          POSTGRES_PASSWORD: CI_Only_Not_A_Production_Secret
+        run: |
+          docker compose -f deploy/compose.preview.yaml exec -T postgres psql -X -v ON_ERROR_STOP=1 -U memo_preview -d memodb_preview <<'SQL'
+          do $check$
+          begin
+            if to_regclass('auth.users') is null
+               or to_regclass('core.notes') is null
+               or to_regclass('core.note_sources') is null
+               or to_regprocedure('reporting.fn_company_metrics_snapshot_v4_filtered(uuid,date,date,date,text)') is null
+            then
+              raise exception 'Incomplete preview database schema';
+            end if;
+          end
+          $check$;
+          SQL
+      - name: Dump PostgreSQL diagnostics on failure
+        if: failure()
+        env:
+          POSTGRES_PASSWORD: CI_Only_Not_A_Production_Secret
+        run: docker compose -f deploy/compose.preview.yaml logs postgres
+      - name: Stop preview database
+        if: always()
+        env:
+          POSTGRES_PASSWORD: CI_Only_Not_A_Production_Secret
+        run: docker compose -f deploy/compose.preview.yaml down -v --remove-orphans

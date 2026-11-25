@@ -1,5 +1,5 @@
-# Preview only: no legacy APIs, users, or frontend have been migrated yet.
-# docker compose --env-file deploy/.env.preview -f deploy/compose.preview.yaml up --build -d
+# Nonproduction, isolated developer preview; migrations run only on an EMPTY PostgreSQL volume.
+# docker compose --env-file deploy/.env.preview -f deploy/compose.preview.yaml -f deploy/compose.frontend-preview.yaml up --build -d
 name: memo-springboot-preview
 
 services:
@@ -11,6 +11,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in deploy/.env.preview}
     volumes:
       - postgres_preview_data:/var/lib/postgresql/data
+      - ../database/migrations:/opt/memo-migrations:ro
+      - ./init-preview-database.sh:/docker-entrypoint-initdb.d/00-memo-preview.sh:ro
     networks: [memo_internal]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
