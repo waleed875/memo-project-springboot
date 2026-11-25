@@ -50,6 +50,8 @@ public class SecurityConfiguration {
                 "/api/internal/dashboard/quality").permitAll()
             .requestMatchers(HttpMethod.GET,
                 "/api/internal/dashboard/performance").permitAll()
+            .requestMatchers(HttpMethod.GET,
+                "/api/internal/dashboard/activity").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/notes/review-queue").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/notes/{id}/source").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/notes/{id}/source").permitAll()
