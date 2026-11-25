@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.waleed875.memo.modules.identity.application.UserProfile;
 import io.github.waleed875.memo.modules.notes.application.NoteDraftEditCommand;
+import io.github.waleed875.memo.modules.notes.application.NoteDraftMetadata;
+import io.github.waleed875.memo.modules.notes.domain.NoteSaveValidationException;
 import io.github.waleed875.memo.modules.notes.application.NoteDraftEditConflict;
 import io.github.waleed875.memo.modules.notes.application.NoteDraftEditRepository;
 import io.github.waleed875.memo.modules.notes.application.NoteDraftEditService;
@@ -205,6 +207,98 @@ class LegacyFullSchemaOwnerDraftMediaLinksIT {
             assertEquals(0, count("core.note_review_history", "note_id", id));
         } finally {
             jdbc.execute("alter table audit.logs drop constraint if exists ck_owner_draft_fail");
+        }
+    }
+
+    private NoteDraftMetadata changedMetadata(UUID companyId, UUID typeId, String number) {
+        return new NoteDraftMetadata(number, companyId, typeId, null, null,
+            java.time.LocalDate.of(2026, 11, 19),
+            java.time.LocalDate.of(2026, 11, 24));
+    }
+
+    private NoteDraftEditCommand withMetadata(UUID note, NoteDraftMetadata metadata) {
+        return new NoteDraftEditCommand(note, version(note), "changed metadata",
+            true, false, requiredCorrect(), null, null, null, metadata);
+    }
+
+    @Test void updatesNumberCompanyAndDatesWithAtomicMetadataAudit() {
+        UUID id = note(entryType, "DRAFT");
+        UUID newCompany = UUID.randomUUID();
+        jdbc.update("insert into core.companies(id,name) values (?, 'New company')",
+            newCompany);
+        var command = withMetadata(id, changedMetadata(newCompany, entryType, "٨١٢٣٤"));
+        service.edit(actor, command);
+        assertEquals("٨١٢٣٤", jdbc.queryForObject(
+            "select note_number from core.notes where id=?", String.class, id));
+        assertEquals(81234L, jdbc.queryForObject(
+            "select note_number_value from core.notes where id=?", Long.class, id));
+        assertEquals(newCompany, jdbc.queryForObject(
+            "select company_id from core.notes where id=?", UUID.class, id));
+        assertEquals(java.time.LocalDate.of(2026, 11, 19), jdbc.queryForObject(
+            "select writing_date from core.notes where id=?", java.time.LocalDate.class, id));
+        assertEquals(1, jdbc.queryForObject("""
+            select count(*) from audit.logs
+            where record_id=? and action_type='UPDATE_NOTE_METADATA'
+              and old_value->>'companyId'=?
+              and new_value->>'companyId'=?
+            """, Integer.class, id, company.toString(), newCompany.toString()));
+    }
+
+    @Test void refusesDuplicateNumberWithoutAuditOrMetadataMutation() {
+        UUID existing = note(entryType, "COMPLETE");
+        UUID edited = note(entryType, "DRAFT");
+        String existingNumber = jdbc.queryForObject(
+            "select note_number from core.notes where id=?", String.class, existing);
+        var cmd = withMetadata(edited, changedMetadata(company, entryType, existingNumber));
+        assertThrows(NoteSaveValidationException.class, () -> service.edit(actor, cmd));
+        assertEquals("before", jdbc.queryForObject(
+            "select notes from core.notes where id=?", String.class, edited));
+        assertEquals(0, count("core.note_review_history", "note_id", edited));
+        assertEquals(0, jdbc.queryForObject("""
+            select count(*) from audit.logs
+            where record_id=? and action_type='UPDATE_NOTE_METADATA'
+            """, Integer.class, edited));
+    }
+
+    @Test void refusesCompanyChangeWhenSourceOrLinkAlreadyExists() {
+        UUID edited = note(entryType, "DRAFT");
+        UUID exit = note(exitType, "COMPLETE");
+        jdbc.update("""
+            insert into core.note_links(source_note_id, related_note_id, created_by)
+            values (?, ?, ?)
+            """, edited, exit, user);
+        UUID newCompany = UUID.randomUUID();
+        jdbc.update("insert into core.companies(id,name) values (?, 'Another company')",
+            newCompany);
+        var cmd = withMetadata(edited, changedMetadata(newCompany, entryType, "81234567"));
+        assertThrows(NoteSaveValidationException.class, () -> service.edit(actor, cmd));
+        assertEquals(company, jdbc.queryForObject(
+            "select company_id from core.notes where id=?", UUID.class, edited));
+        assertEquals(1, links(edited));
+        assertEquals(1, sourceRefs(edited));
+    }
+
+    @Test void failingMetadataAuditRollsBackAllFieldsAndNewMetadata() {
+        UUID edited = note(entryType, "DRAFT");
+        var cmd = withMetadata(edited, changedMetadata(company, entryType, "99000123"));
+        LocalDateTime oldVersion = version(edited);
+        String oldNumber = jdbc.queryForObject(
+            "select note_number from core.notes where id=?", String.class, edited);
+        jdbc.execute("""
+            alter table audit.logs add constraint ck_metadata_audit_fail
+            check (action_type <> 'UPDATE_NOTE_METADATA') not valid
+            """);
+        try {
+            assertThrows(Exception.class, () -> service.edit(actor, cmd));
+            assertEquals(oldNumber, jdbc.queryForObject(
+                "select note_number from core.notes where id=?", String.class, edited));
+            assertEquals("before", jdbc.queryForObject(
+                "select notes from core.notes where id=?", String.class, edited));
+            assertEquals(oldVersion, version(edited));
+            assertEquals(0, count("core.note_field_values", "note_id", edited));
+            assertEquals(0, count("core.note_review_history", "note_id", edited));
+        } finally {
+            jdbc.execute("alter table audit.logs drop constraint if exists ck_metadata_audit_fail");
         }
     }
 }
