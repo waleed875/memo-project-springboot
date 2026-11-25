@@ -1,6 +1,8 @@
 package io.github.waleed875.memo.modules.notes.infrastructure;
 
 import io.github.waleed875.memo.modules.notes.application.NoteCreateCommand;
+import io.github.waleed875.memo.modules.notes.application.NoteDuplicateClassification;
+import io.github.waleed875.memo.modules.notes.application.NoteDuplicateResolution;
 import io.github.waleed875.memo.modules.notes.application.NoteCreateConflict;
 import io.github.waleed875.memo.modules.notes.application.NoteCreator;
 import io.github.waleed875.memo.modules.notes.domain.NoteNumberNormalizer;
@@ -103,6 +105,12 @@ public class JdbcNoteCreator implements NoteCreator {
             data.writeBoolean(n.saveAsDraft());
             data.writeBoolean(n.markAllIndicatorsCorrect());
             put(data, command.notes());
+            // Keep fingerprints of old commands unchanged on replay.
+            if (command.resolution() != null) {
+                put(data, "duplicate-resolution-v1");
+                put(data, command.resolution().classification());
+                put(data, command.resolution().matchedNoteId());
+            }
             NoteAttachment attachment = command.attachment();
             if (attachment == null) {
                 data.writeBoolean(false);
@@ -246,8 +254,16 @@ public class JdbcNoteCreator implements NoteCreator {
             rs.getBoolean("active")), typeId);
     }
 
-    private void ensureNoDuplicate(NoteCreateCommand command, String normalized,
-                                   long numericValue) {
+    private UUID verifyDuplicateDecision(NoteCreateCommand command, String normalized,
+                                         long numericValue) {
+        NoteDuplicateResolution resolution = command.resolution();
+        if (resolution != null &&
+            (resolution.classification() != NoteDuplicateClassification.COMPANY_DUPLICATE_NUMBER
+             || resolution.matchedNoteId() == null
+             || ZERO.equals(resolution.matchedNoteId())
+             || command.noteId().equals(resolution.matchedNoteId()))) {
+            throw new NoteCreateConflict("قرار التكرار غير صالح لعملية إنشاء مذكرة جديدة.");
+        }
         var candidate = command.candidate();
         Integer year = candidate.writingDate() == null
             ? null : candidate.writingDate().getYear();
@@ -271,12 +287,44 @@ public class JdbcNoteCreator implements NoteCreator {
                    and (:year is null or note_year = :year))
                 or (note_number_value is null and note_number_normalized = :normalized
                    and (:year is null or extract(year from writing_date)::int = :year)))
-            limit 1
+            order by created_at desc, id
             """, params, (rs, row) -> rs.getObject(1, UUID.class));
-        if (!duplicateIds.isEmpty()) {
+        if (resolution == null && !duplicateIds.isEmpty()) {
             throw new NoteCreateConflict(
                 "توجد مذكرة مطابقة. يجب اختيار التصنيف والمذكرة الأصلية من شاشة معالجة التكرار.");
         }
+        if (resolution != null && !duplicateIds.contains(resolution.matchedNoteId())) {
+            throw new NoteCreateConflict(
+                "المذكرة الأصلية لم تعد مطابقة؛ أعد فحص التكرار.");
+        }
+        return resolution == null ? null : resolution.matchedNoteId();
+    }
+
+    private void recordCompanyDuplicate(NoteCreateCommand command, UUID actor,
+                                        String normalized, UUID matchedId) {
+        var candidate = command.candidate();
+        jdbc.update("""
+            insert into core.duplicate_incidents(
+                classification, matched_note_id, created_note_id, company_id,
+                factory_id, production_line_id, note_type_id, note_number,
+                note_number_normalized, writing_date, decided_by, metadata)
+            values ('COMPANY_DUPLICATE_NUMBER', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                jsonb_build_object('noteNumber', ?, 'normalizedNumber', ?,
+                    'companyId', cast(? as text), 'matchedNoteId', cast(? as text)))
+            """, matchedId, command.noteId(), candidate.companyId(),
+            candidate.factoryId(), candidate.productionLineId(),
+            candidate.noteTypeId(), candidate.noteNumber(), normalized,
+            candidate.writingDate(), actor, candidate.noteNumber(), normalized,
+            candidate.companyId().toString(), matchedId.toString());
+        jdbc.update("""
+            insert into audit.logs(
+                user_id, action_type, schema_name, table_name,
+                record_id, description, new_value)
+            values (?, 'COMPANY_DUPLICATE_NUMBER', 'core', 'duplicate_incidents',
+                ?, 'حفظ مذكرة جديدة مع تصنيف رقم مكرر من الشركة',
+                jsonb_build_object('matchedNoteId', cast(? as text),
+                    'createdNoteId', cast(? as text)))
+            """, actor, command.noteId(), matchedId.toString(), command.noteId().toString());
     }
 
     @Override
@@ -354,7 +402,7 @@ public class JdbcNoteCreator implements NoteCreator {
                 "لا يمكن إرسال المذكرة قبل مراجعة جميع البنود الإلزامية.");
         }
 
-        ensureNoDuplicate(command, normalized, numeric.getAsLong());
+        UUID matchedDuplicate = verifyDuplicateDecision(command, normalized, numeric.getAsLong());
         validateLinks(noteId, c, command.relatedNoteIds());
 
         jdbc.update("""
@@ -442,6 +490,9 @@ public class JdbcNoteCreator implements NoteCreator {
                 values (?, 'MARK_ALL_INDICATORS_CORRECT', 'core',
                         'note_field_values', ?, 'اعتبار المؤشرات صحيحة')
                 """, actor, noteId);
+        }
+        if (matchedDuplicate != null) {
+            recordCompanyDuplicate(command, actor, normalized, matchedDuplicate);
         }
         return noteId;
     }
