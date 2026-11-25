@@ -25,6 +25,8 @@ import io.github.waleed875.memo.modules.notes.application.AdminNoteTextEditRepos
 import io.github.waleed875.memo.modules.notes.application.AdminNoteTextEditService;
 import io.github.waleed875.memo.modules.notes.application.AdminNoteIndicatorEditRepository;
 import io.github.waleed875.memo.modules.notes.application.AdminNoteIndicatorEditService;
+import io.github.waleed875.memo.modules.notes.application.AdminNoteAttachmentUploadRepository;
+import io.github.waleed875.memo.modules.notes.application.AdminNoteAttachmentUploadService;
 import java.time.Clock;
 import java.time.ZoneId;
 import io.github.waleed875.memo.modules.notes.domain.NoteReadPolicy;
@@ -34,6 +36,14 @@ import org.springframework.context.annotation.Configuration;
 /** Compose note read use cases without coupling domain to HTTP or JDBC. */
 @Configuration
 public class NotesWiring {
+    @Bean
+    AdminNoteAttachmentUploadService adminNoteAttachmentUploadService(
+        AdminNoteAttachmentUploadRepository repository, MasterDataWriteGate gate
+    ) {
+        return new AdminNoteAttachmentUploadService(repository, gate);
+    }
+
+
     @Bean
     AdminNoteIndicatorEditService adminNoteIndicatorEditService(
         AdminNoteIndicatorEditRepository repository, MasterDataWriteGate gate
