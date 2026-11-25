@@ -96,9 +96,9 @@ class DashboardSnapshotWireParityTest {
         assertEquals(expected.getNodeType(),actual.getNodeType(),"JSON type mismatch "+path);
         if(expected.isObject()) {
             var expectedNames=new java.util.HashSet<String>();
-            expected.propertyNames().forEachRemaining(expectedNames::add);
+            expected.propertyNames().forEach(expectedNames::add);
             var actualNames=new java.util.HashSet<String>();
-            actual.propertyNames().forEachRemaining(actualNames::add);
+            actual.propertyNames().forEach(actualNames::add);
             assertEquals(expectedNames,actualNames,"JSON object properties "+path);
             for(String name:expectedNames)
                 assertEquivalent(expected.get(name),actual.get(name),path+"."+name);
