@@ -1,0 +1,52 @@
+name: Legacy C# core golden-master parity
+on:
+  push:
+    paths:
+      - '.github/workflows/legacy-core-parity-ci.yml'
+      - 'backend/**'
+      - 'tools/legacy-core-oracle/**'
+  pull_request:
+    paths:
+      - '.github/workflows/legacy-core-parity-ci.yml'
+      - 'backend/**'
+      - 'tools/legacy-core-oracle/**'
+permissions:
+  contents: read
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout independent Spring Boot repository
+        uses: actions/checkout@v4
+      - name: Checkout pinned original C# source read only
+        uses: actions/checkout@v4
+        with:
+          repository: waleed875/memo_project
+          ref: dd8eb2ba57864eac2371a3addd0b786ccefa2367
+          path: legacy-reference
+          persist-credentials: false
+          sparse-checkout: |
+            Memo_Project_Handover_v2.0.2/02_الكود_المصدري_Source_Code/source/src/AuditMemoSystem.Core
+          sparse-checkout-cone-mode: false
+      - name: Install .NET SDK 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - name: Produce oracle by executing original C# Core
+        run: |
+          dotnet run --project tools/legacy-core-oracle/LegacyCoreOracle.csproj --configuration Release -- \
+            backend/src/test/resources/compatibility/legacy-core-cases.tsv \
+            "$RUNNER_TEMP/legacy-core-golden.tsv"
+          test -s "$RUNNER_TEMP/legacy-core-golden.tsv"
+      - name: Install Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - name: Compare Spring with executable pinned C# oracle
+        env:
+          MEMO_CSHARP_ORACLE: ${{ runner.temp }}/legacy-core-golden.tsv
+        run: mvn -B -ntp -f backend/pom.xml -Dtest=LegacyCoreGoldenParityTest test
