@@ -170,7 +170,8 @@ class DashboardActivityPostgresIT {
         assertEquals(1,filtered.backlogByAge().size());
         assertEquals(1,filtered.backlogByAge().getFirst().value());
         assertEquals(2,filtered.duplicateBreakdown().size());
-        assertTrue(filtered.duplicateBreakdown().stream()\n            .anyMatch(x->x.classification().equals("COMPANY_RESEND")));
+        assertTrue(filtered.duplicateBreakdown().stream()
+            .anyMatch(x->x.classification().equals("COMPANY_RESEND")));
     }
 
     @Test void roleRevocationAndMissingAdminAreDeniedInJdbc() {
