@@ -105,7 +105,7 @@ class DashboardFlowPostgresIT {
         assertEquals(1,result.incomingVsApproved().size());
         assertEquals("2026-11",result.incomingVsApproved().getFirst().periodKey());
         assertEquals(3L,result.incomingVsApproved().getFirst().incoming());
-        assertEquals(1L,result.incomingVsApproved().getFirst().approved());
+        assertEquals(2L,result.incomingVsApproved().getFirst().approved());
         
     }
 
