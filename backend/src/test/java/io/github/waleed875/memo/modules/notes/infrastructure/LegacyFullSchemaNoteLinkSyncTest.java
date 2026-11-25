@@ -196,7 +196,7 @@ class LegacyFullSchemaNoteLinkSyncTest {
         String constraintName = "ck_reject_link_full_schema";
         jdbc.execute("""
             alter table audit.logs add constraint ck_reject_link_full_schema
-            check (action_type <> 'LINK_NOTES')
+            check (action_type <> 'LINK_NOTES') not valid
             """);
         try {
             assertThrows(Exception.class, () -> repository.sync(command(e, x), admin));
