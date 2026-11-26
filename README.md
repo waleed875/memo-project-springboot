@@ -49,3 +49,11 @@ docker compose --env-file deploy/.env.preview -f deploy/compose.preview.yaml -f 
 ```
 
 Open http://127.0.0.1:8082. If this port is also unavailable, choose another free host port. Do **not** use `down -v` or regenerate the PostgreSQL password to resolve a frontend port conflict.
+
+## Spring Boot system status (replacement for browser DB setup)
+
+The React Docker image is built with `VITE_MEMO_BACKEND=spring`. In this mode it does not call the .NET-only `/api/setup/*` endpoints or ask users for PostgreSQL credentials. Instead, login starts through `/api/admin/session` and the "حالة النظام" page is available from login or `/?systemStatus=1`. Anonymous visitors can see only a minimal backend availability signal from `GET /api/system/health`. Only a live database-revalidated ADMIN session can read `GET /api/admin/system-status` (database connectivity, schema version 070, migrations). No connection URL, username or password is returned.
+
+Settings remain in Docker/Portainer rather than the browser. The previous React setup wizard is retained exclusively for legacy non-Spring builds. A fresh Spring preview still has **no usable administrator password** until safe initial account provisioning is implemented. Do not interpret a successful status page as authentication or full API compatibility.
+
+After pulling this change, rebuild **only the frontend image and the backend image** to get the new status API and frontend UI. Preserve the PostgreSQL volume and `deploy/.env.preview`.

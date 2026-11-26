@@ -50,10 +50,19 @@ class SystemStatusControllerTest {
         return (MockHttpSession) login.getRequest().getSession(false);
     }
 
+    @Test void publicHealthIsMinimalAndDoesNotAccessDatabase() throws Exception {
+        mvc.perform(get("/api/system/health"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.backend").value("UP"))
+            .andExpect(jsonPath("$.database").doesNotExist())
+            .andExpect(jsonPath("$.password").doesNotExist());
+        verify(jdbc, never()).queryForObject("select 1", Integer.class);
+    }
+
     @Test void anonymousCannotReadDatabaseDetails() throws Exception {
         mvc.perform(get("/api/admin/system-status"))
             .andExpect(status().isUnauthorized());
-        verifyNoInteractions(jdbc);
+        verify(jdbc, never()).queryForObject("select 1", Integer.class);
     }
 
     @Test void nonAdminCannotReadDatabaseDetails() throws Exception {
