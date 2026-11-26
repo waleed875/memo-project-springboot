@@ -14,6 +14,9 @@ on:
     paths:
       - 'database/migrations/**'
       - 'deploy/init-preview-database.sh'
+      - 'deploy/PostgresPreview.Dockerfile'
+      - 'deploy/.dockerignore'
+      - '.gitattributes'
       - 'deploy/compose.preview.yaml'
       - '.github/workflows/preview-db-ci.yml'
 
