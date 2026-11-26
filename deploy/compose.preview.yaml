@@ -19,7 +19,7 @@ services:
     networks: [memo_internal]
     healthcheck:
       # A half-initialized database must NOT be marked healthy.
-      test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB >/dev/null && psql -XAt -U $POSTGRES_USER -d $POSTGRES_DB -c 'select database_version from system.database_settings where singleton is true' 2>/dev/null | grep -qx 070"]
+      test: ["CMD-SHELL", "pg_isready -U memo_preview -d memodb_preview >/dev/null && psql -XAt -U memo_preview -d memodb_preview -c 'select database_version from system.database_settings where singleton is true' 2>/dev/null | grep -qx 070"]
       interval: 10s
       timeout: 3s
       retries: 10
