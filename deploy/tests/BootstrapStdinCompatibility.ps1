@@ -22,7 +22,9 @@ $samples = @(
     'A-Strong-Preview-Test-Password-123',
     'Arabic-مذكرات-Preview-123'
 )
+$testIndex = 0
 foreach ($sample in $samples) {
+    $testIndex++
     $procInfo = New-Object System.Diagnostics.ProcessStartInfo
     $procInfo.FileName = 'powershell.exe'
     $procInfo.Arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $PSCommandPath + '" -Child'
@@ -46,7 +48,7 @@ foreach ($sample in $samples) {
                 $expected = [BitConverter]::ToString($sha.ComputeHash($expectedBytes)).Replace('-', '')
             } finally { $sha.Dispose() }
         } finally { [System.Array]::Clear($expectedBytes, 0, $expectedBytes.Length) }
-        if ($actual -cne $expected) { throw 'The redirected process input was not exact UTF-8.' }
+        if ($actual -cne $expected) { throw ('UTF-8 stream mismatch for test sample ' + $testIndex + '; received hash ' + $actual + '; expected hash ' + $expected) }
     } finally { $process.Dispose() }
 }
 Write-Host 'Windows PowerShell 5.1 UTF-8 stdin transport passed (ASCII and non-ASCII).'
