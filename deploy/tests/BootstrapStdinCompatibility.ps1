@@ -36,7 +36,13 @@ foreach ($sample in $samples) {
     $process = New-Object System.Diagnostics.Process
     $process.StartInfo = $procInfo
     try {
-        if (-not $process.Start()) { throw 'Could not start the test child.' }
+        $previousInputEncoding = [Console]::InputEncoding
+        try {
+            [Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false)
+            if (-not $process.Start()) { throw 'Could not start the test child.' }
+        } finally {
+            [Console]::InputEncoding = $previousInputEncoding
+        }
         Write-Utf8PasswordToProcess -Process $process -Password $sample
         $actual = $process.StandardOutput.ReadToEnd().Trim()
         $process.WaitForExit()
