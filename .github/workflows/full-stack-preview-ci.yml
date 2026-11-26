@@ -73,6 +73,29 @@ jobs:
           test "$status" = 403
           curl --fail --silent http://127.0.0.1:8081/api/admin/session | grep -q '"authenticated":false'
           curl --fail --silent http://127.0.0.1:8081/api/admin/csrf | grep -q '"token"'
+      - name: Activate pristine preview administrator one time and verify login
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(-f deploy/compose.preview.yaml -f deploy/compose.frontend-preview.yaml -f deploy/compose.ci.yaml)
+          command=(docker compose "${files[@]}" run --rm -T --no-deps
+            -e SPRING_PROFILES_ACTIVE=preview-admin-bootstrap
+            -e SPRING_MAIN_WEB_APPLICATION_TYPE=none
+            -e MEMO_PREVIEW_BOOTSTRAP_STDIN=true memo-api)
+          # Disposable CI-only credential; never read a real user/production secret.
+          printf '%s\n' 'CI-Only-Preview-Admin-Pass-12345' | "${command[@]}"
+          count=$(docker compose "${files[@]}" exec -T postgres psql -XAt -U memo_preview -d memodb_preview -c "select count(*) from auth.users where username='admin' and password_hash like '$2%'")
+          test "$count" = '1'
+          if printf '%s\n' 'Second-Bootstrap-Should-Fail-123' | "${command[@]}"; then
+            echo "ERROR: administrator was initialized a second time" >&2
+            exit 1
+          fi
+          jar=$(mktemp)
+          trap 'rm -f "$jar"' EXIT
+          token=$(curl --fail --silent -c "$jar" http://127.0.0.1:8081/api/admin/csrf | python3 -c "import json,sys; print(json.load(sys.stdin)['token'])")
+          auth=$(curl --fail --silent -b "$jar" -c "$jar" -H "X-CSRF-TOKEN: $token" -H 'Content-Type: application/json' -d '{"username":"admin","password":"CI-Only-Preview-Admin-Pass-12345"}' http://127.0.0.1:8081/api/admin/login)
+          printf '%s' "$auth" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['authenticated'] and d['role']=='ADMIN',d"
+          curl --fail --silent -b "$jar" http://127.0.0.1:8081/api/admin/system-status | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['database']=='CONNECTED' and d['databaseVersion']=='070' and d['migrations']=='CURRENT',d"
       - name: Preview diagnostics on failure
         if: failure()
         run: docker compose -f deploy/compose.preview.yaml -f deploy/compose.frontend-preview.yaml -f deploy/compose.ci.yaml logs --tail=200
