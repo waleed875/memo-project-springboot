@@ -84,7 +84,7 @@ jobs:
             -e MEMO_PREVIEW_BOOTSTRAP_STDIN=true memo-api)
           # Disposable CI-only credential; never read a real user/production secret.
           printf '%s\n' 'CI-Only-Preview-Admin-Pass-12345' | "${command[@]}"
-          count=$(docker compose "${files[@]}" exec -T postgres psql -XAt -U memo_preview -d memodb_preview -c "select count(*) from auth.users where username='admin' and password_hash like '$2%'")
+          count=$(docker compose "${files[@]}" exec -T postgres psql -XAt -U memo_preview -d memodb_preview -c "select count(*) from auth.users where username='admin' and password_hash like '\$2%'")
           test "$count" = '1'
           if printf '%s\n' 'Second-Bootstrap-Should-Fail-123' | "${command[@]}"; then
             echo "ERROR: administrator was initialized a second time" >&2
