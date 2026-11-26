@@ -31,6 +31,8 @@ services:
       dockerfile: Dockerfile
     environment:
       SERVER_PORT: "8080"
+      # Preview-only legacy React dashboard route; defaults to denied outside Compose.
+      MEMO_DASHBOARD_SNAPSHOT_ENABLED: "true"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/memodb_preview
       SPRING_DATASOURCE_USERNAME: memo_preview
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in deploy/.env.preview}

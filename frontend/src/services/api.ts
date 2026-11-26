@@ -241,7 +241,11 @@ export const api = {
   getLookups(signal?: AbortSignal): Promise<DashboardLookups> {
     return requestJson<DashboardLookups>('/api/dashboard/lookups', { signal })
   },
-  getHealth(signal?: AbortSignal): Promise<ServerHealth> {
+  async getHealth(signal?: AbortSignal): Promise<ServerHealth> {
+    if (import.meta.env.VITE_MEMO_BACKEND === 'spring') {
+      const result = await requestJson<{ backend: string }>('/api/system/health', { signal })
+      return { status: result.backend === 'UP' ? 'ok' : 'error' }
+    }
     return requestJson<ServerHealth>('/health', { signal })
   },
   getCompanyMetrics(companyId: string, from: string, to: string, signal?: AbortSignal, entryCutoffDate?: string): Promise<CompanyMetrics> {
