@@ -3,6 +3,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+# Configure Spring Boot database via environment, never via the legacy browser wizard.
+ENV VITE_MEMO_BACKEND=spring
 RUN npm run build
 
 FROM nginx:1.27-alpine

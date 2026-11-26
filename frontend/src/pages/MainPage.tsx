@@ -137,6 +137,14 @@ export const MainPage: React.FC<MainPageProps> = ({ onNavigate }) => {
           </div>
 
           <div className="flex items-center gap-3">
+          {isAdmin && import.meta.env.VITE_MEMO_BACKEND === 'spring' && (
+            <a
+              href="/?systemStatus=1"
+              className="inline-flex items-center rounded-xl border app-border app-surface-muted px-3 py-2 text-xs font-semibold app-text"
+            >
+              حالة النظام
+            </a>
+          )}
             {(isDataEntry || isAdmin) && (
               <button
                 type="button"
