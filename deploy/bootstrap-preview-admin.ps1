@@ -49,7 +49,15 @@ try {
     . (Join-Path $PSScriptRoot 'Write-Utf8PasswordToProcess.ps1')
     $process = New-Object System.Diagnostics.Process
     $process.StartInfo = $procInfo
-    if (-not $process.Start()) { throw 'Could not start the one-time Docker bootstrap command.' }
+    # .NET Framework picks Console.InputEncoding for redirected stdin.
+    # Use a UTF-8 encoder without BOM so the password bytes match exactly.
+    $previousInputEncoding = [Console]::InputEncoding
+    try {
+        [Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false)
+        if (-not $process.Start()) { throw 'Could not start the one-time Docker bootstrap command.' }
+    } finally {
+        [Console]::InputEncoding = $previousInputEncoding
+    }
     try {
         Write-Utf8PasswordToProcess -Process $process -Password $plain1
         $process.WaitForExit()
