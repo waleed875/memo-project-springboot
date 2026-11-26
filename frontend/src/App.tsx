@@ -4,10 +4,14 @@ import { DashboardRouter } from './DashboardRouter'
 import { AdminLoginPage } from './pages/AdminLoginPage'
 import { SetupPage } from './pages/SetupPage'
 import { DashboardPreview, type PreviewView } from './preview/DashboardPreview'
+import { SystemStatusPage } from './pages/SystemStatusPage'
 import { useAuth } from './context/AuthContext'
 import { t } from './i18n'
 
-type AppMode = 'loading' | 'setup' | 'login' | 'ready' | 'preview' | 'error'
+type AppMode = 'loading' | 'setup' | 'login' | 'ready' | 'preview' | 'error' | 'status'
+
+// The Spring Boot Docker build selects this explicitly. Legacy .NET builds retain their wizard.
+const isSpringBackend = () => import.meta.env.VITE_MEMO_BACKEND === 'spring'
 
 export default function App() {
   const [mode, setMode] = useState<AppMode>('loading')
@@ -18,6 +22,7 @@ export default function App() {
   const { user, refreshSession } = useAuth()
 
   const loadConfig = () => {
+    if (isSpringBackend()) return
     api
       .getSetupConfig()
       .then((result) => setConfig(result))
@@ -31,6 +36,11 @@ export default function App() {
       return
     }
 
+    if (isSpringBackend() && new URLSearchParams(window.location.search).get('systemStatus') === '1') {
+      setMode('status')
+      return
+    }
+
     let cancelled = false
     const timeout = window.setTimeout(() => {
       cancelled = true
@@ -38,25 +48,28 @@ export default function App() {
       setMode('error')
     }, 15000)
 
-    api
-      .getSetupStatus()
-      .then(async (status) => {
+    const startup = async () => {
+      if (!isSpringBackend()) {
+        const status = await api.getSetupStatus()
         if (cancelled) return
         if (!status.isConfigured) {
           setMode('setup')
           return
         }
+      }
 
-        const session = await api.getAdminSession()
-        if (cancelled) return
-        if (!session.authenticated) {
-          setMode('login')
-          return
-        }
+      const session = await api.getAdminSession()
+      if (cancelled) return
+      if (!session.authenticated) {
+        setMode('login')
+        return
+      }
 
-        setMode('ready')
-        loadConfig()
-      })
+      setMode('ready')
+      loadConfig()
+    }
+
+    void startup()
       .catch((error) => {
         if (!cancelled) {
           if (error instanceof ApiRequestError) {
@@ -81,6 +94,18 @@ export default function App() {
       setMode('login')
     }
   }, [mode, user])
+
+  const openSystemStatus = () => setMode('status')
+
+  const closeSystemStatus = () => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.has('systemStatus')) {
+      params.delete('systemStatus')
+      const query = params.toString()
+      window.history.replaceState(null, '', window.location.pathname + (query ? '?' + query : ''))
+    }
+    setMode(user ? 'ready' : 'login')
+  }
 
   const openSetup = () => {
     setIsEditing(true)
@@ -136,14 +161,16 @@ export default function App() {
             <button type="button" onClick={() => window.location.reload()} className="btn-primary rounded-lg px-4 py-2 text-sm font-semibold">
               {t('common.refresh')}
             </button>
-            <button type="button" onClick={openSetup} className="rounded-lg border app-border app-surface-muted app-hover px-4 py-2 text-sm font-semibold app-text">
-              ضبط الاتصال بقاعدة البيانات
+            <button type="button" onClick={isSpringBackend() ? openSystemStatus : openSetup} className="rounded-lg border app-border app-surface-muted app-hover px-4 py-2 text-sm font-semibold app-text">
+              {isSpringBackend() ? 'حالة النظام' : 'ضبط الاتصال بقاعدة البيانات'}
             </button>
           </div>
         </section>
       </div>
     )
   }
+
+  if (mode === 'status') return <SystemStatusPage onClose={closeSystemStatus} />
 
   if (mode === 'loading') {
     return (
@@ -153,12 +180,12 @@ export default function App() {
     )
   }
 
-  if (mode === 'login') return <AdminLoginPage onAuthenticated={authenticated} onOpenSetup={openSetup} />
+  if (mode === 'login') return <AdminLoginPage onAuthenticated={authenticated} onOpenSetup={isSpringBackend() ? undefined : openSetup} onOpenSystemStatus={isSpringBackend() ? openSystemStatus : undefined} />
 
   return mode === 'setup' ? (
     <SetupPage isEdit={isEditing} onSaved={setupSaved} onCancel={isEditing ? cancelSetup : undefined} />
   ) : (
-    <DashboardRouter config={config} onEditConnection={openSetup} />
+    <DashboardRouter config={config} onEditConnection={isSpringBackend() ? undefined : openSetup} />
   )
 }
 

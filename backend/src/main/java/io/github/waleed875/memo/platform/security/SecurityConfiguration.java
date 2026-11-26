@@ -25,7 +25,7 @@ public class SecurityConfiguration {
                 "/api/admin/csrf", "/api/admin/login", "/api/admin/session", "/api/admin/logout"
             ).permitAll()
             // The controller enforces a DB-validated ADMIN session before any SQL.
-            .requestMatchers(HttpMethod.GET, "/api/admin/system-status").permitAll()
+            .requestMatchers(HttpMethod.GET, "/api/system/health", "/api/admin/system-status").permitAll()
             // Public at the filter boundary only: MasterDataQueryService
             // performs application-level session authorization before any SQL.
             .requestMatchers(HttpMethod.GET,

@@ -28,6 +28,12 @@ public final class SystemStatusController {
         this.jdbc = jdbc;
     }
 
+    @GetMapping("/api/system/health")
+    public ResponseEntity<java.util.Map<String, String>> publicHealth() {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+            .body(java.util.Map.of("backend", "UP"));
+    }
+
     @GetMapping("/api/admin/system-status")
     public ResponseEntity<StatusResponse> status(HttpServletRequest request) {
         var actor = sessions.resolve(request);

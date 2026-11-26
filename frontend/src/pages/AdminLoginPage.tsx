@@ -7,9 +7,10 @@ import SyrianLogo from '../assets/Syrian_logo_icon_gold.svg';
 interface AdminLoginPageProps {
   onAuthenticated: () => void;
   onOpenSetup?: () => void;
+  onOpenSystemStatus?: () => void;
 }
 
-export function AdminLoginPage({ onAuthenticated, onOpenSetup }: AdminLoginPageProps) {
+export function AdminLoginPage({ onAuthenticated, onOpenSetup, onOpenSystemStatus }: AdminLoginPageProps) {
   const dir = useDirection();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -195,15 +196,15 @@ export function AdminLoginPage({ onAuthenticated, onOpenSetup }: AdminLoginPageP
           </form>
         )}
 
-        {onOpenSetup && (
+        {(onOpenSetup || onOpenSystemStatus) && (
           <div className="mt-5 pt-4 border-t app-border text-center">
             <button
               type="button"
-              onClick={onOpenSetup}
+              onClick={onOpenSystemStatus ?? onOpenSetup}
               className="inline-flex items-center justify-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-amber-700 dark:hover:text-amber-400 transition-colors"
             >
               <span>⚙️</span>
-              <span>ضبط إعدادات الاتصال بقاعدة البيانات</span>
+              <span>{onOpenSystemStatus ? 'حالة النظام' : 'ضبط إعدادات الاتصال بقاعدة البيانات'}</span>
             </button>
           </div>
         )}
