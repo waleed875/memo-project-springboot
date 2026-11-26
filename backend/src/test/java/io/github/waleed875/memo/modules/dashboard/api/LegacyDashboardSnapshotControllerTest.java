@@ -1,6 +1,5 @@
 package io.github.waleed875.memo.modules.dashboard.api;
 
-import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
