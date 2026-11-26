@@ -5,6 +5,9 @@ on:
     paths:
       - 'database/migrations/**'
       - 'deploy/init-preview-database.sh'
+      - 'deploy/PostgresPreview.Dockerfile'
+      - 'deploy/.dockerignore'
+      - '.gitattributes'
       - 'deploy/compose.preview.yaml'
       - '.github/workflows/preview-db-ci.yml'
   pull_request:
@@ -33,11 +36,19 @@ jobs:
             test "${#files[@]}" -eq 1
           done
           test "$(find database/migrations -maxdepth 1 -type f -name '[0-9][0-9][0-9]_*.sql' | wc -l)" -eq 70
+      - name: Emulate Windows CRLF checkout for the PostgreSQL init hook
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('deploy/init-preview-database.sh')
+          p.write_bytes(p.read_bytes().replace(b'\r\n', b'\n').replace(b'\n', b'\r\n'))
+          assert b'\r\n' in p.read_bytes()
+          PY
       - name: Start fresh isolated PostgreSQL (no original checkout)
         env:
           POSTGRES_PASSWORD: CI_Only_Not_A_Production_Secret
         run: |
-          docker compose -f deploy/compose.preview.yaml up -d postgres
+          docker compose -f deploy/compose.preview.yaml up --build -d postgres
           for i in $(seq 1 90); do
             if docker compose -f deploy/compose.preview.yaml exec -T postgres psql -XAt -U memo_preview -d memodb_preview -c "select database_version from system.database_settings where singleton is true" 2>/dev/null | grep -qx 070; then exit 0; fi
             sleep 2

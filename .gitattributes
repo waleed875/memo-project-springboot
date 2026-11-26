@@ -1,0 +1,2 @@
+# Portable shell entrypoints must never depend on client core.autocrlf.
+*.sh text eol=lf

@@ -4,7 +4,11 @@ name: memo-springboot-preview
 
 services:
   postgres:
-    image: postgres:16-bookworm
+    # Build a tiny wrapper around the official image so the init script always
+    # has LF line endings, even if Git checked it out with Windows CRLF.
+    build:
+      context: .
+      dockerfile: PostgresPreview.Dockerfile
     environment:
       POSTGRES_DB: memodb_preview
       POSTGRES_USER: memo_preview
@@ -12,10 +16,10 @@ services:
     volumes:
       - postgres_preview_data:/var/lib/postgresql/data
       - ../database/migrations:/opt/memo-migrations:ro
-      - ./init-preview-database.sh:/docker-entrypoint-initdb.d/00-memo-preview.sh:ro
     networks: [memo_internal]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      # A half-initialized database must NOT be marked healthy.
+      test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB >/dev/null && psql -XAt -U $POSTGRES_USER -d $POSTGRES_DB -c 'select database_version from system.database_settings where singleton is true' 2>/dev/null | grep -qx 070"]
       interval: 10s
       timeout: 3s
       retries: 10
