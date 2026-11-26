@@ -57,3 +57,11 @@ The React Docker image is built with `VITE_MEMO_BACKEND=spring`. In this mode it
 Settings remain in Docker/Portainer rather than the browser. The previous React setup wizard is retained exclusively for legacy non-Spring builds. A fresh Spring preview still has **no usable administrator password** until safe initial account provisioning is implemented. Do not interpret a successful status page as authentication or full API compatibility.
 
 After pulling this change, rebuild **only the frontend image and the backend image** to get the new status API and frontend UI. Preserve the PostgreSQL volume and `deploy/.env.preview`.
+
+## First admin login on a fresh preview database
+
+The fresh PostgreSQL 070 seed deliberately has no usable administrator password.
+To safely activate its original `admin` user **once** without a browser database
+configuration page, see [one-time Windows preview admin bootstrap](deploy/ADMIN_BOOTSTRAP.md).
+The command only runs on an unused preview DB, does not expose an HTTP setup
+endpoint, and never resets volumes or uses preset credentials.

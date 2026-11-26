@@ -7,6 +7,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
+@org.springframework.context.annotation.Profile("!preview-admin-bootstrap")
 public class SecurityConfiguration {
     /**
      * Migration-safe default: do not accidentally expose unimplemented legacy APIs.
