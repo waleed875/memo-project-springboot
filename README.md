@@ -65,3 +65,24 @@ To safely activate its original `admin` user **once** without a browser database
 configuration page, see [one-time Windows preview admin bootstrap](deploy/ADMIN_BOOTSTRAP.md).
 The command only runs on an unused preview DB, does not expose an HTTP setup
 endpoint, and never resets volumes or uses preset credentials.
+
+## Preview dashboard: authorization and health
+
+The original React dashboard calls `GET /api/dashboard/snapshot`. This endpoint
+is intentionally disabled by default (`memo.dashboard.snapshot.enabled=false`)
+and is enabled **only** by the isolated `deploy/compose.preview.yaml` setting
+`MEMO_DASHBOARD_SNAPSHOT_ENABLED=true`. It requires a current database-revalidated
+ADMIN session and serves the already-migrated unified snapshot as the flat legacy
+React JSON contract. Production must not enable this preview switch until the
+remaining parity and release security gates are complete. No unauthenticated or
+non-admin access is allowed and no success-shaped placeholder data is returned.
+
+The Spring frontend's dashboard health probe calls `/api/system/health`
+instead of the obsolete .NET `/health`, avoiding a misleading offline banner.
+This does **not** authorize unsupported dashboard endpoints or bypass any session
+checks. A newly initialized preview database may have no notes, so the dashboard
+can legitimately display empty metrics.
+
+After pulling updates, rebuild the `memo-api` and `memo-frontend` images and
+recreate their containers without deleting the PostgreSQL volume or changing
+`deploy/.env.preview`.

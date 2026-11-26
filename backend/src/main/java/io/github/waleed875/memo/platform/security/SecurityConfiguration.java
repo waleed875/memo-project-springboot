@@ -42,6 +42,9 @@ public class SecurityConfiguration {
             .requestMatchers(HttpMethod.GET,
                 "/api/notes/incomplete-indicators", "/api/notes/link-candidates"
             ).denyAll()
+            // Legacy React snapshot is explicitly gated by a server-side preview flag.
+            // Controller and service require a live DB-validated ADMIN session.
+            .requestMatchers(HttpMethod.GET, "/api/dashboard/snapshot").permitAll()
             // Dashboard lookups only: controller/service require an active ADMIN session,
             // and JDBC re-checks the current DB role. All other dashboard paths stay denied.
             .requestMatchers(HttpMethod.GET, "/api/dashboard/lookups").permitAll()
