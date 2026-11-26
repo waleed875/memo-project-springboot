@@ -27,3 +27,9 @@ The original migrations `001` through `070` are executed inside **a single SQL t
 This is a **source-complete preview**, not a production-ready functional replacement. The original `/api/setup/*` UI bootstrap flow and several legacy dashboard and notes APIs are still intentionally denied. The original SQL creates an admin account with a placeholder password hash, so a fresh preview has **no usable administrator login**; do not weaken authentication or seed shared credentials. Setting up a safe initial account provisioning mechanism remains required. Only approved test identities may be used in disposable integration tests. Gitea and Portainer production deployment remain deferred.
 
 See `database/migrations/` for the exact pinned SQL files; CI no longer needs the original repository to replay migrations in the dedicated preview database job. The original repository is unchanged.
+
+## Windows / Docker Desktop: PostgreSQL initialization
+
+A Windows Git checkout can convert shell scripts to CRLF. The dedicated `deploy/PostgresPreview.Dockerfile` normalizes the init hook to LF **inside the image** and `.gitattributes` asks Git to keep shell scripts in LF. The fresh-database CI job deliberately converts the checked-out hook to CRLF before building the image to prevent regressions.
+
+If an older version failed with `/usr/bin/env: 'bash\\r': No such file or directory`, PostgreSQL may have created its data directory **without applying migrations**. PostgreSQL will not automatically rerun init scripts on that existing volume. Do not delete the volume or run `down -v` as a first response. See [Windows preview database recovery](deploy/WINDOWS_PREVIEW_RECOVERY.md) for guarded, non-destructive recovery instructions. The readiness check only passes when schema version 070 exists.

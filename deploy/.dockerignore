@@ -1,0 +1,3 @@
+# Never send .env.preview credentials or other local files to Docker build.
+*
+!init-preview-database.sh
