@@ -25,7 +25,7 @@ docker compose --env-file deploy/.env.preview -f deploy/compose.preview.yaml -f 
 powershell -NoProfile -File .\deploy\bootstrap-preview-admin.ps1
 ```
 
-The PowerShell script prompts twice with hidden input; enter a **new unique 12–72 character** password (up to 72 UTF-8 bytes). It sends the password through stdin to a one-off Spring CLI container, never as a docker argument, environment variable, or file. The input is briefly converted to a managed .NET string in memory and cannot be guaranteed to be fully erased there. Do not run this on a shared/untrusted machine. The database stores only a BCrypt hash.
+The PowerShell script supports **Windows PowerShell 5.1** (the built-in `powershell.exe`) as well as PowerShell 7; it writes raw UTF-8 bytes through Docker's redirected stdin rather than using the unavailable .NET Framework `ProcessStartInfo.StandardInputEncoding` property. It prompts twice with hidden input; enter a **new unique 12–72 character** password (up to 72 UTF-8 bytes). It sends the password through stdin to a one-off Spring CLI container, never as a docker argument, environment variable, or file. The input is briefly converted to a managed .NET string in memory and cannot be guaranteed to be fully erased there. Do not run this on a shared/untrusted machine. The database stores only a BCrypt hash.
 
 After the command succeeds, open the configured frontend port (default 8081; 8082 if `MEMO_FRONTEND_PORT=8082`) and log in with:
 

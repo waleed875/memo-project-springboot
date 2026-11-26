@@ -42,15 +42,16 @@ try {
     $procInfo.WorkingDirectory = $root
     $procInfo.UseShellExecute = $false
     $procInfo.RedirectStandardInput = $true
-    $procInfo.StandardInputEncoding = New-Object Text.UTF8Encoding($false)
     $procInfo.CreateNoWindow = $false
 
+    # Windows PowerShell 5.1 (.NET Framework) does not provide ProcessStartInfo.StandardInputEncoding.
+    # Write UTF-8 bytes directly to the redirected standard-input stream instead.
+    . (Join-Path $PSScriptRoot 'Write-Utf8PasswordToProcess.ps1')
     $process = New-Object System.Diagnostics.Process
     $process.StartInfo = $procInfo
     if (-not $process.Start()) { throw 'Could not start the one-time Docker bootstrap command.' }
     try {
-        $process.StandardInput.WriteLine($plain1)
-        $process.StandardInput.Close()
+        Write-Utf8PasswordToProcess -Process $process -Password $plain1
         $process.WaitForExit()
         if ($process.ExitCode -ne 0) {
             throw 'Admin activation was refused or failed. Review the message above.'
