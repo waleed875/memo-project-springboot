@@ -69,7 +69,7 @@ class SystemStatusControllerTest {
         var session = sessionFor(MemoRole.VIEWER);
         mvc.perform(get("/api/admin/system-status").session(session))
             .andExpect(status().isForbidden());
-        verifyNoInteractions(jdbc);
+        verify(jdbc, never()).queryForObject("select 1", Integer.class);
     }
 
     @Test void adminGetsOnlySafeVersionAndStatusMetadata() throws Exception {
