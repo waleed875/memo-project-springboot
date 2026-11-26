@@ -19,7 +19,7 @@ docker compose --env-file deploy/.env.preview -f deploy/compose.preview.yaml -f 
 
 The original migrations `001` through `070` are executed inside **a single SQL transaction**, only by the standard PostgreSQL image's initialization hook on a new empty database volume. This is intentionally NOT a general-purpose migration runner and will not modify an existing database volume. Check `docker compose ... logs postgres` for initialization errors. Existing volumes are never reset automatically. **Never run `down -v` on data you need to retain.**
 
-- UI: http://127.0.0.1:8081
+- UI: http://127.0.0.1:8081 (or the port defined by `MEMO_FRONTEND_PORT`)
 - API health: http://127.0.0.1:8080/actuator/health
 - PostgreSQL port is not published.
 - Spring Boot and PostgreSQL are restricted to a private Docker bridge network; host HTTP ports bind loopback.
@@ -33,3 +33,19 @@ See `database/migrations/` for the exact pinned SQL files; CI no longer needs th
 A Windows Git checkout can convert shell scripts to CRLF. The dedicated `deploy/PostgresPreview.Dockerfile` normalizes the init hook to LF **inside the image** and `.gitattributes` asks Git to keep shell scripts in LF. The fresh-database CI job deliberately converts the checked-out hook to CRLF before building the image to prevent regressions.
 
 If an older version failed with `/usr/bin/env: 'bash\\r': No such file or directory`, PostgreSQL may have created its data directory **without applying migrations**. PostgreSQL will not automatically rerun init scripts on that existing volume. Do not delete the volume or run `down -v` as a first response. See [Windows preview database recovery](deploy/WINDOWS_PREVIEW_RECOVERY.md) for guarded, non-destructive recovery instructions. The readiness check only passes when schema version 070 exists.
+
+## Windows: port 8081 is already used or reserved
+
+If Docker Desktop reports `ports are not available` or a Windows socket permissions error for `127.0.0.1:8081`, use an alternate **host** port without modifying the container's port 80 or rebuilding any images. Add this line to the existing `deploy/.env.preview` (keep `POSTGRES_PASSWORD` unchanged):
+
+```dotenv
+MEMO_FRONTEND_PORT=8082
+```
+
+Then in CMD or PowerShell from the repository root, run:
+
+```cmd
+docker compose --env-file deploy/.env.preview -f deploy/compose.preview.yaml -f deploy/compose.frontend-preview.yaml up -d --no-build
+```
+
+Open http://127.0.0.1:8082. If this port is also unavailable, choose another free host port. Do **not** use `down -v` or regenerate the PostgreSQL password to resolve a frontend port conflict.
