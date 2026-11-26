@@ -63,14 +63,14 @@ jobs:
             docker compose -f deploy/compose.preview.yaml -f deploy/compose.frontend-preview.yaml -f deploy/compose.ci.yaml ps
             exit 1
           fi
-      - name: Check migrated DB and reject legacy public dashboard route
+      - name: Check migrated DB and anonymous dashboard access
         shell: bash
         run: |
           set -euo pipefail
           version=$(docker compose -f deploy/compose.preview.yaml -f deploy/compose.frontend-preview.yaml -f deploy/compose.ci.yaml exec -T postgres psql -XAt -v ON_ERROR_STOP=1 -U memo_preview -d memodb_preview -c "select database_version from system.database_settings where singleton is true")
           test "$version" = '070'
           status=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8081/api/dashboard/snapshot)
-          test "$status" = 403
+          test "$status" = 401
           curl --fail --silent http://127.0.0.1:8081/api/admin/session | grep -q '"authenticated":false'
           curl --fail --silent http://127.0.0.1:8081/api/admin/csrf | grep -q '"token"'
       - name: Activate pristine preview administrator one time and verify login
@@ -96,6 +96,8 @@ jobs:
           auth=$(curl --fail --silent -b "$jar" -c "$jar" -H "X-CSRF-TOKEN: $token" -H 'Content-Type: application/json' -d '{"username":"admin","password":"CI-Only-Preview-Admin-Pass-12345"}' http://127.0.0.1:8081/api/admin/login)
           printf '%s' "$auth" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['authenticated'] and d['role']=='ADMIN',d"
           curl --fail --silent -b "$jar" http://127.0.0.1:8081/api/admin/system-status | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['database']=='CONNECTED' and d['databaseVersion']=='070' and d['migrations']=='CURRENT',d"
+          curl --fail --silent -b "$jar" http://127.0.0.1:8081/api/dashboard/snapshot | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['isHealthy'] is True and 'summary' in d and 'views' in d and 'companies' in d and 'snapshot' not in d, d.keys()"
+          curl --fail --silent http://127.0.0.1:8081/api/system/health | python3 -c "import json,sys; assert json.load(sys.stdin)['backend']=='UP'"
       - name: Preview diagnostics on failure
         if: failure()
         run: docker compose -f deploy/compose.preview.yaml -f deploy/compose.frontend-preview.yaml -f deploy/compose.ci.yaml logs --tail=200
